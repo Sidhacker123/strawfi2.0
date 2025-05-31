@@ -1,0 +1,6 @@
+sec-edgar-downloader
+beautifulsoup4
+nltk
+lxml
+requests
+python-dotenv

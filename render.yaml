@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: fintech-backend
+    env: node
+    buildCommand: |
+      npm install
+      pip install -r requirements.txt
+      python -m nltk.downloader punkt
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: FRONTEND_URL
+        sync: false 

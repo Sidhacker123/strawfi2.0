@@ -1,0 +1,5 @@
+node_modules/
+sec-edgar/
+.env
+*.pyc
+__pycache__/
