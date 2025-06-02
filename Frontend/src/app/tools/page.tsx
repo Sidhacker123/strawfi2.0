@@ -4,8 +4,8 @@ import { useState } from "react";
 import { FaRobot, FaChartLine, FaShieldAlt, FaFileAlt, FaArrowLeft, FaRegBuilding, FaRegNewspaper, FaRegFileAlt as FaRegFile, FaRegUser, FaLeaf, FaGavel } from "react-icons/fa";
 import Link from "next/link";
 import SecFilingParser from "../components/SecFilingParser";
+import DeltaDetectionUI from "../components/deltadetector"; // Add this import
 import Header from "../components/Header";
-
 
 type Tool = {
   id: string;
@@ -21,6 +21,14 @@ export default function ToolsPage() {
 
   const tools: Tool[] = [
     {
+      id: "delta-detector",
+      name: "Delta Detector",
+      description: "Detect and analyze significant changes in financial data, portfolio metrics, or user behavior",
+      icon: FaChartLine,
+      component: DeltaDetectionUI, // Add the component here
+      available: true,
+    },
+    {
       id: "sec-filing",
       name: "SEC Filing Parser",
       description: "Parse and analyze SEC filings (10-K, 10-Q, 8-K) for detailed financial insights",
@@ -33,13 +41,6 @@ export default function ToolsPage() {
       name: "ESG Metrics & Developments",
       description: "Track environmental, social, and governance metrics and related developments",
       icon: FaLeaf,
-      available: false,
-    },
-    {
-      id: "regulatory-changes",
-      name: "Regulatory Changes",
-      description: "Monitor updates to financial regulations and compliance requirements",
-      icon: FaGavel,
       available: false,
     },
     {

@@ -22,12 +22,11 @@ const trackingTools: TrackingTool[] = [
     description: "Track environmental, social, and governance metrics and related developments",
     icon: <FaChartLine className="text-2xl" />,
   },
-  {
-    id: "regulatory",
-    name: "Regulatory Changes",
-    description: "Monitor updates to financial regulations and compliance requirements",
-    icon: <FaRegBuilding className="text-2xl" />,
-  },
+  {id: "delta-detector",
+    name: "Delta Detector",
+    description: "Detect and analyze significant changes in financial data, portfolio metrics, or user behavior",
+    icon: <FaChartLine className="text-2xl" />,
+   },
   {
     id: "nfp",
     name: "NFP/Economic Data",

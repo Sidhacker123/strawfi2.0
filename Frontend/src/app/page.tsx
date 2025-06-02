@@ -1,23 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useState, useEffect } from "react";
 import { FaRobot, FaChartLine, FaShieldAlt, FaArrowRight } from "react-icons/fa";
 import { AnimatedSection } from "./components/AnimatedSection";
 import Header from "./components/Header";
 
 export default function Home() {
-  const [showAnimatedLogo, setShowAnimatedLogo] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowAnimatedLogo(false);
-    }, 2500);
-
-    return () => clearTimeout(timer);
-  }, []);
-
   return (
     <main className="min-h-screen bg-black text-white">
       <Header />
@@ -28,16 +17,17 @@ export default function Home() {
             Welcome to Financial Multiverse
           </h1>
           
-          {/* Logo with conditional rendering */}
+          {/* Video Logo */}
           <div className="flex justify-center mb-6">
-            <Image
-              src={showAnimatedLogo ? "/assets/logo.gif" : "/assets/tab.png"}
-              alt="Financial Multiverse Logo"
-              width={200}
-              height={200}
+            <video
+              src="/assets/logo.mp4"
+              width={250}
+              height={250}
+              autoPlay
+              muted
+              playsInline
               className="transition-opacity duration-500"
-              priority
-              unoptimized={showAnimatedLogo}
+              style={{ border: 'none', outline: 'none' }}
             />
           </div>
           
