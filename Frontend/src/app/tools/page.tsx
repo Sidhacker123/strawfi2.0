@@ -64,6 +64,13 @@ export default function ToolsPage() {
       icon: FaRegUser,
       available: false,
     },
+    {
+      id: "regulation-compliance",
+      name: "Regulation and Compliance",
+      description: "Monitor regulatory changes, compliance requirements, and legal developments affecting financial markets",
+      icon: FaGavel,
+      available: false,
+    },
   ];
 
   // Find the currently active tool

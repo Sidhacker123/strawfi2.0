@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { FaRobot, FaChartLine, FaShieldAlt, FaArrowRight } from "react-icons/fa";
+import { FaRobot, FaChartLine, FaBrain, FaArrowRight } from "react-icons/fa";
 import { AnimatedSection } from "./components/AnimatedSection";
 import Header from "./components/Header";
 
@@ -39,17 +39,17 @@ export default function Home() {
         {/* Features Grid */}
         <AnimatedSection animation="fade">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            <Link href="/persona" className="block group">
+            <Link href="/knowledge-repo" className="block group">
               <div className="bg-white/5 backdrop-blur-lg p-8 rounded-xl border border-white/10 hover:bg-white/10 transition-all h-full">
                 <div className="text-4xl mb-6 bg-gradient-to-r from-white to-gray-400 w-16 h-16 rounded-full flex items-center justify-center">
-                  <FaRobot className="text-black" />
+                  <FaBrain className="text-black" />
                 </div>
-                <h3 className="text-2xl font-bold mb-4">Personalized Financial Models</h3>
+                <h3 className="text-2xl font-bold mb-4">InvestIQ - The Knowledge Repo</h3>
                 <p className="text-gray-400 mb-6 text-lg">
-                  Discover your financial persona and get tailored investment strategies based on your unique style.
+                  Persistent research memory, collaborative intelligence, and smart retrieval system for investment decisions.
                 </p>
                 <div className="flex items-center text-gray-400 group-hover:text-white">
-                  <span className="mr-2">Explore Models</span>
+                  <span className="mr-2">Explore Repository</span>
                   <FaArrowRight className="transition-transform group-hover:translate-x-1" />
                 </div>
               </div>
@@ -71,18 +71,21 @@ export default function Home() {
               </div>
             </Link>
 
-            <div className="bg-white/5 backdrop-blur-lg p-8 rounded-xl border border-white/10 h-full opacity-50">
-              <div className="text-4xl mb-6 bg-gradient-to-r from-white to-gray-400 w-16 h-16 rounded-full flex items-center justify-center">
-                <FaShieldAlt className="text-black" />
+            <Link href="/persona" className="block group">
+              <div className="bg-white/5 backdrop-blur-lg p-8 rounded-xl border border-white/10 hover:bg-white/10 transition-all h-full">
+                <div className="text-4xl mb-6 bg-gradient-to-r from-white to-gray-400 w-16 h-16 rounded-full flex items-center justify-center">
+                  <FaRobot className="text-black" />
+                </div>
+                <h3 className="text-2xl font-bold mb-4">Personalized Financial Models</h3>
+                <p className="text-gray-400 mb-6 text-lg">
+                  Discover your financial persona and get tailored investment strategies based on your unique style.
+                </p>
+                <div className="flex items-center text-gray-400 group-hover:text-white">
+                  <span className="mr-2">Explore Models</span>
+                  <FaArrowRight className="transition-transform group-hover:translate-x-1" />
+                </div>
               </div>
-              <h3 className="text-2xl font-bold mb-4">Regulations & Compliance</h3>
-              <p className="text-gray-400 mb-6 text-lg">
-                Automated compliance verification and regulatory reporting assistance for your investments.
-              </p>
-              <div className="text-gray-400">
-                Coming Soon
-              </div>
-            </div>
+            </Link>
           </div>
         </AnimatedSection>
       </div>
