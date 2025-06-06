@@ -1,51 +1,23 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
-import PageTransition from "./components/PageTransition";
-import Header from "./components/Header";
+import './globals.css'
+import { AuthProvider } from '@/contexts/AuthContext'
 
-const inter = Inter({ subsets: ["latin"] });
-
-export const metadata: Metadata = {
-  title: "Strawfi",
-  description: "Your gateway to personalized financial insights and AI-powered analysis",
-  icons: {
-    icon: [
-      {
-        url: "/assests/logo.png",
-        sizes: "32x32",
-        type: "image/png",
-      },
-      {
-        url: "/assests/logo.png",
-        sizes: "16x16", 
-        type: "image/png",
-      }
-    ],
-    shortcut: "/assests/logo.png",
-    apple: {
-      url: "/assests/logo.png",
-      sizes: "180x180",
-      type: "image/png",
-    },
-  },
-};
+export const metadata = {
+  title: 'Financial Insights',
+  description: 'Your financial insights application',
+}
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        {/* <Header /> */}
-        {/* Spacer to push content below the fixed header */}
-        {/* <div style={{ height: "64px" }} /> */}
-        <PageTransition>
+      <body>
+        <AuthProvider>
           {children}
-        </PageTransition>
+        </AuthProvider>
       </body>
     </html>
-  );
+  )
 }

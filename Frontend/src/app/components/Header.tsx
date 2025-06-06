@@ -1,8 +1,10 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { FaChevronLeft, FaHeadphones, FaCopy, FaTimes, FaPlay, FaLinkedin, FaChevronDown } from "react-icons/fa";
+import { FaChevronLeft, FaHeadphones, FaCopy, FaTimes, FaPlay, FaLinkedin, FaUser } from "react-icons/fa";
 import { useState } from "react";
+import DemoRequestModal from './DemoRequestModal';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface HeaderProps {
   showBackButton?: boolean;
@@ -30,6 +32,26 @@ const initialDemoForm: DemoFormData = {
   firmDescription: ''
 };
 
+// Helper function to get user initials
+const getUserInitials = (fullName: string, email: string) => {
+  if (fullName && fullName.trim()) {
+    const names = fullName.trim().split(' ');
+    if (names.length >= 2) {
+      return (names[0][0] + names[names.length - 1][0]).toUpperCase();
+    } else {
+      return names[0].substring(0, 2).toUpperCase();
+    }
+  }
+  
+  // Fallback to email initials if no full name
+  if (email) {
+    const emailPart = email.split('@')[0];
+    return emailPart.substring(0, 2).toUpperCase();
+  }
+  
+  return 'U';
+};
+
 export default function Header({ 
   showBackButton = false, 
   backUrl = "/", 
@@ -37,9 +59,10 @@ export default function Header({
 }: HeaderProps) {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showDemoModal, setShowDemoModal] = useState(false);
-  const [showInsightsDropdown, setShowInsightsDropdown] = useState(false);
   const [copied, setCopied] = useState(false);
   const [demoForm, setDemoForm] = useState<DemoFormData>(initialDemoForm);
+  const { user, signOut, userProfile } = useAuth();
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   const tryMailto = () => {
     window.location.href = 'mailto:siddpurdue@gmail.com';
@@ -80,11 +103,6 @@ export default function Header({
     setDemoForm(prev => ({ ...prev, [field]: value }));
   };
 
-  const openDocument = (filename: string) => {
-    window.open(`/assets/${filename}`, '_blank');
-    setShowInsightsDropdown(false);
-  };
-
   return (
     <>
       <header className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-sm">
@@ -110,49 +128,17 @@ export default function Header({
                   height={32}
                   className="transition-opacity duration-500"
                 />
-                <div className="relative">
-                  <button
-                    onClick={() => setShowInsightsDropdown(!showInsightsDropdown)}
-                    className="flex items-center space-x-2 text-white hover:text-gray-300 transition-colors"
-                  >
-                    <span className="text-lg font-semibold text-white hover:text-gray-300 transition-colors">Financial Insights</span>
-                    <FaChevronDown className={`text-sm transition-transform ${showInsightsDropdown ? 'rotate-180' : ''}`} />
-                  </button>
-                  
-                  {showInsightsDropdown && (
-                    <div className="absolute top-full left-0 mt-2 w-80 bg-gray-900 border border-gray-600 rounded-lg shadow-xl z-50">
-                      <div className="p-4">
-                        <div className="mb-4">
-                          <h4 className="text-white font-semibold mb-2 text-lg">BLOG</h4>
-                          <p className="text-gray-400 text-sm mb-3">General information and market insights</p>
-                          <button
-                            onClick={() => openDocument('blog.html')}
-                            className="w-full text-left bg-gray-800 hover:bg-gray-700 text-white p-3 rounded transition-colors"
-                          >
-                            <div className="font-medium">Topic 1 - Stagflation</div>
-                            <div className="text-sm text-gray-400">Tariff-Induced Economic Implications</div>
-                          </button>
-                        </div>
-                        
-                        <div className="border-t border-gray-600 pt-4">
-                          <h4 className="text-white font-semibold mb-2 text-lg">REPORTS</h4>
-                          <p className="text-gray-400 text-sm mb-3">Detailed analysis with numbers and data</p>
-                          <button
-                            onClick={() => openDocument('report.html')}
-                            className="w-full text-left bg-gray-800 hover:bg-gray-700 text-white p-3 rounded transition-colors"
-                          >
-                            <div className="font-medium">NVIDIA Corporation (NASDAQ: NVDA)</div>
-                            <div className="text-sm text-gray-400">Comprehensive Equity Research Report – May 29, 2025</div>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <Link 
+                  href="/financial-insights"
+                  className="text-lg font-semibold text-white hover:text-gray-300 transition-colors"
+                >
+                  Financial Insights
+                </Link>
               </div>
             </div>
-              
-            <div className="flex items-center space-x-8">
+            
+            {/* Right side - moved to extreme right */}
+            <div className="flex items-center space-x-6 ml-auto">
               <button
                 onClick={() => setShowHelpModal(true)}
                 className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
@@ -168,18 +154,68 @@ export default function Header({
                 <FaPlay className="text-lg" />
                 <span className="text-lg font-semibold text-white hover:text-gray-300 transition-colors">Request a demo</span>
               </button>
+
+              {user ? (
+                <div className="relative">
+                  <button
+                    onClick={() => setIsProfileOpen(!isProfileOpen)}
+                    className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
+                      {getUserInitials(userProfile?.full_name || '', user.email || '')}
+                    </div>
+                    <span className="text-white">{userProfile?.full_name || user.email}</span>
+                  </button>
+                  {isProfileOpen && (
+                    <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-gray-900 ring-1 ring-gray-600">
+                      <div className="py-1">
+                        <Link
+                          href="/profile"
+                          className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800"
+                          onClick={() => setIsProfileOpen(false)}
+                        >
+                          Profile
+                        </Link>
+                        <Link
+                          href="/settings"
+                          className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800"
+                          onClick={() => setIsProfileOpen(false)}
+                        >
+                          Settings
+                        </Link>
+                        <button
+                          onClick={() => {
+                            signOut();
+                            setIsProfileOpen(false);
+                          }}
+                          className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-800"
+                        >
+                          Sign Out
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center space-x-4">
+                  <Link
+                    href="/login"
+                    className="text-white hover:text-gray-300 transition-colors"
+                  >
+                    Sign In
+                  </Link>
+                  <Link
+                    href="/login?mode=signup"
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors"
+                  >
+                    Sign Up
+                  </Link>
+                </div>
+              )}
             </div>
           </nav>
         </div>
       </header>
-
-      {/* Click outside to close dropdown */}
-      {showInsightsDropdown && (
-        <div 
-          className="fixed inset-0 z-40" 
-          onClick={() => setShowInsightsDropdown(false)}
-        />
-      )}
 
       {/* Help Modal */}
       {showHelpModal && (
@@ -232,95 +268,10 @@ export default function Header({
       )}
 
       {/* Demo Request Modal */}
-      {showDemoModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="bg-gray-900 border border-gray-600 rounded-lg p-8 max-w-md w-full mx-4 relative max-h-[90vh] overflow-y-auto">
-            <button
-              onClick={() => setShowDemoModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white"
-            >
-              <FaTimes />
-            </button>
-            
-            <h2 className="text-white font-semibold text-lg">Request A Demo</h2>
-            <p className="text-gray-400 text-sm mb-6">
-              Reach out to learn more about one of the 300+ data sets and solutions 
-              available in our marketplace.
-            </p>
-            
-            <form onSubmit={handleDemoSubmit} className="space-y-4">
-              <input
-                type="text"
-                required
-                value={demoForm.firstName}
-                onChange={(e) => handleInputChange('firstName', e.target.value)}
-                className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                placeholder="First Name*"
-              />
-              
-              <input
-                type="text"
-                required
-                value={demoForm.lastName}
-                onChange={(e) => handleInputChange('lastName', e.target.value)}
-                className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                placeholder="Last Name*"
-              />
-              
-              <input
-                type="email"
-                required
-                value={demoForm.businessEmail}
-                onChange={(e) => handleInputChange('businessEmail', e.target.value)}
-                className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                placeholder="Business Email*"
-              />
-              
-              <input
-                type="tel"
-                required
-                value={demoForm.phoneNumber}
-                onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-                className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                placeholder="Phone Number (exclude country code)*"
-              />
-              
-              <input
-                type="text"
-                required
-                value={demoForm.companyName}
-                onChange={(e) => handleInputChange('companyName', e.target.value)}
-                className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                placeholder="Company Name*"
-              />
-              
-              <input
-                type="text"
-                required
-                value={demoForm.businessCardTitle}
-                onChange={(e) => handleInputChange('businessCardTitle', e.target.value)}
-                className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                placeholder="Business Card Title*"
-              />
-              
-              <textarea
-                required
-                value={demoForm.firmDescription}
-                onChange={(e) => handleInputChange('firmDescription', e.target.value)}
-                className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 h-24 resize-none"
-                placeholder="Firm Description*"
-              />
-              
-              <button
-                type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
-              >
-                Submit Request
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+      <DemoRequestModal 
+        isOpen={showDemoModal} 
+        onClose={() => setShowDemoModal(false)} 
+      />
 
       {/* Spacer */}
       <div className="h-16" />

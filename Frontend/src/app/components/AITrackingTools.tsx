@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FaChartLine, FaRegBuilding, FaRegNewspaper, FaRegFileAlt, FaRegUser, FaSearch, FaSpinner } from "react-icons/fa";
+import { FaChartLine, FaRegBuilding, FaRegNewspaper, FaRegFileAlt, FaRegUser, FaSearch, FaSpinner, FaGavel } from "react-icons/fa";
 
 interface TrackingTool {
   id: string;
@@ -23,10 +23,10 @@ const trackingTools: TrackingTool[] = [
     icon: <FaChartLine className="text-2xl" />,
   },
   {
-    id: "regulatory",
-    name: "Regulatory Changes",
-    description: "Monitor updates to financial regulations and compliance requirements",
-    icon: <FaRegBuilding className="text-2xl" />,
+    id: "delta-detector",
+    name: "Delta Detector",
+    description: "Detect and analyze significant changes in financial data, portfolio metrics, or user behavior",
+    icon: <FaChartLine className="text-2xl" />,
   },
   {
     id: "nfp",
@@ -51,6 +51,12 @@ const trackingTools: TrackingTool[] = [
     name: "SEC Filing Parser",
     description: "Parse and analyze SEC filings (10-K, 10-Q, 8-K) for comprehensive financial data",
     icon: <FaSearch className="text-2xl" />,
+  },
+  {
+    id: "regulation-compliance",
+    name: "Regulation and Compliance",
+    description: "Monitor regulatory changes, compliance requirements, and legal developments affecting financial markets",
+    icon: <FaGavel className="text-2xl" />,
   },
 ];
 
