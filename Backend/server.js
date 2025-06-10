@@ -10,10 +10,22 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // CORS configuration
+const allowedOrigins = [
+  'https://www.strawfi.com',
+  'https://fintech-multiverse.vercel.app',
+  'http://localhost:3000'
+];
+
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? [process.env.FRONTEND_URL || 'https://fintech-multiverse.vercel.app'] 
-    : 'http://localhost:3000',
+origin: function (origin, callback) {
+  if (!origin || allowedOrigins.includes(origin)) {
+    callback(null, true);
+  } 
+  else {
+    console.error('Blocked by CORS:', origin);
+    callback(new Error('Not allowed by CORS'));
+  }
+ },
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type']
 };
