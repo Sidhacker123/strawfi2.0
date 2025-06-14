@@ -61,7 +61,7 @@ export default function Header({
   const [showDemoModal, setShowDemoModal] = useState(false);
   const [copied, setCopied] = useState(false);
   const [demoForm, setDemoForm] = useState<DemoFormData>(initialDemoForm);
-  const { user, signOut, userProfile } = useAuth();
+  const { user, signOut } = useAuth(); // Remove userProfile as it's not in the context
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   const tryMailto = () => {
@@ -162,9 +162,9 @@ export default function Header({
                     className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
                   >
                     <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
-                      {getUserInitials(userProfile?.full_name || '', user.email || '')}
+                      {getUserInitials(user?.full_name || '', user.email || '')}
                     </div>
-                    <span className="text-white">{userProfile?.full_name || user.email}</span>
+                    <span className="text-white">{user?.full_name || user.email}</span>
                   </button>
                   {isProfileOpen && (
                     <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-gray-900 ring-1 ring-gray-600">

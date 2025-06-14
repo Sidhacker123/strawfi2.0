@@ -1,167 +1,282 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { User } from '@supabase/auth-helpers-nextjs';
+import { useRouter } from 'next/navigation';
 
 interface UserProfile {
-  full_name: string | null;
-  username: string | null;
-  phone_number: string | null;
-  company: string | null;
-  position: string | null;
-  bio: string | null;
+  id: string;
+  email: string;
+  full_name?: string;
+  team_id?: string;
+  role?: string;
 }
 
 interface AuthContextType {
-  user: User | null;
-  userProfile: UserProfile | null;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
-  verifyOtp: (email: string, token: string) => Promise<void>;
-  signOut: () => Promise<void>;
+  user: UserProfile | null;
   loading: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, fullName?: string) => Promise<{ needsEmailVerification: boolean }>;
+  signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  checkEmailVerification: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+export function AuthProvider({ children }: { children: ReactNode }) {
   const supabase = createClientComponentClient();
+  const router = useRouter();
 
-  // Fetch user profile
-  const fetchProfile = async (userId: string) => {
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  /************ helpers ************/
+  const fetchProfile = async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching profile:', error);
+      if (error || !session) {
+        setUser(null);
         return;
       }
 
-      if (data) {
-        setUserProfile(data);
-      } else {
-        setUserProfile(null);
-      }
-    } catch (error) {
-      console.error('Error fetching profile:', error);
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+
+      setUser({
+        id: session.user.id,
+        email: session.user.email!,
+        full_name: profile?.full_name,
+        team_id: profile?.team_id,
+        role: profile?.role,
+      });
+    } catch (e) {
+      console.error('fetchProfile error:', e);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Refresh profile data
-  const refreshProfile = async () => {
-    if (user) {
-      await fetchProfile(user.id);
-    }
-  };
-
-  // Sign in function
+  /************ actions ************/
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw error;
 
-    if (error) {
-      throw new Error(error.message);
+      await fetchProfile();
+      router.push('/');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Sign up function
-  const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${location.origin}/auth/callback`,
-      },
-    });
+  const signUp = async (
+    email: string,
+    password: string,
+    fullName: string = ''
+  ) => {
+    setLoading(true);
+    try {
+      console.log('Starting signup process for:', email);
+      
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            full_name: fullName
+          }
+        }
+      });
+      
+      if (error) {
+        console.error('Signup error:', error);
+        throw error;
+      }
+      
+      if (!data.user) {
+        console.error('No user data returned');
+        throw new Error('Could not obtain new user id');
+      }
 
-    if (error) {
-      throw new Error(error.message);
+      console.log('Signup successful, checking verification status');
+      
+      // Check if email verification is required
+      const needsEmailVerification = !data.session;
+      console.log('Needs email verification:', needsEmailVerification);
+
+      if (!needsEmailVerification) {
+        console.log('No verification needed, proceeding with profile setup');
+        let retries = 0;
+        let session = null;
+        
+        while (retries < 5) {
+          const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+          if (sessionError) {
+            console.error('Session error:', sessionError);
+            throw sessionError;
+          }
+          if (currentSession) {
+            session = currentSession;
+            break;
+          }
+          console.log('Waiting for session, attempt:', retries + 1);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          retries++;
+        }
+
+        if (!session) {
+          console.error('No session established after signup');
+          throw new Error('No session established after signup');
+        }
+
+        if (fullName) {
+          console.log('Updating profile with full name');
+          const { error: profileErr } = await supabase
+            .from('profiles')
+            .update({ full_name: fullName })
+            .eq('id', data.user.id);
+
+          if (profileErr) {
+            console.error('Profile update error:', profileErr);
+            throw profileErr;
+          }
+        }
+
+        await fetchProfile();
+        router.push('/knowledge-repo');
+      } else {
+        console.log('Email verification required, verification email should be sent');
+      }
+
+      return { needsEmailVerification };
+    } catch (error) {
+      console.error('Signup process error:', error);
+      throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Verify OTP function
-  const verifyOtp = async (email: string, token: string) => {
-    const { error } = await supabase.auth.verifyOtp({
-      email,
-      token,
-      type: 'signup',
-    });
-
-    if (error) {
-      throw new Error(error.message);
-    }
-  };
-
-  // Sign out function
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
-    if (error) {
-      throw new Error(error.message);
-    }
-    setUserProfile(null);
+    if (error) throw error;
+
+    setUser(null);
+    router.push('/login');
   };
 
-  // Listen for auth changes
+  const refreshProfile = fetchProfile;
+
+  const checkEmailVerification = async () => {
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      return !!session;
+    } catch (error) {
+      console.error('Error checking email verification:', error);
+      return false;
+    }
+  };
+
+  /************ init ************/
   useEffect(() => {
-    const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchProfile(session.user.id);
-      }
-      setLoading(false);
-    };
-
-    getSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await fetchProfile(session.user.id);
-        } else {
-          setUserProfile(null);
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting session:', error);
+          setUser(null);
+          return;
         }
+
+        if (session) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+
+          setUser({
+            id: session.user.id,
+            email: session.user.email!,
+            full_name: profile?.full_name,
+            team_id: profile?.team_id,
+            role: profile?.role,
+          });
+        } else {
+          setUser(null);
+        }
+      } catch (e) {
+        console.error('Auth initialization error:', e);
+        setUser(null);
+      } finally {
         setLoading(false);
       }
-    );
+    };
+
+    initializeAuth();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.id);
+      if (session) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        setUser({
+          id: session.user.id,
+          email: session.user.email!,
+          full_name: profile?.full_name,
+          team_id: profile?.team_id,
+          role: profile?.role,
+        });
+      } else {
+        setUser(null);
+      }
+    });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const value = {
+  const value: AuthContextType = {
     user,
-    userProfile,
+    loading,
     signIn,
     signUp,
-    verifyOtp,
     signOut,
-    loading,
     refreshProfile,
+    checkEmailVerification,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  return ctx;
 }

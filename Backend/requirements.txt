@@ -4,3 +4,11 @@ nltk
 lxml
 requests
 python-dotenv
+GitPython
+pathlib
+supabase
+numpy
+scikit-learn
+fastapi
+pandas
+dotenv
