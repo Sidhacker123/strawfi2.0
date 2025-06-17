@@ -18,12 +18,25 @@ const PORT = process.env.PORT || 3001;
 
 // ---------- CORS ----------
 const corsOptions = {
+<<<<<<< HEAD
   origin:
     process.env.NODE_ENV === 'production'
       ? [process.env.FRONTEND_URL || 'https://fintech-multiverse.vercel.app']
       : 'http://localhost:3000',
   methods: ['GET', 'POST', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']   // include auth header
+=======
+  origin: process.env.NODE_ENV === 'production'
+    ? [
+        process.env.FRONTEND_URL || 'https://fintech-multiverse.vercel.app',
+        'https://testingfinalmo.vercel.app'
+      ]
+    : ['http://localhost:3000', 'http://localhost:5173'], // Added Vite's default port
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true,
+  maxAge: 86400 // 24 hours
+>>>>>>> 10b65d9 (cors)
 };
 
 app.use(cors(corsOptions));
