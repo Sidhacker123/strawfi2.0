@@ -79,7 +79,3 @@ desktop.ini
 .temp/
 .tmp/
 
-# database files
-*.db
-/database/
-/database/exports/ 
