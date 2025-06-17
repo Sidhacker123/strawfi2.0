@@ -1,28 +1,31 @@
 // Simple Express server for the strawfi API
-
 require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
+const express  = require('express');
+const cors     = require('cors');
+const jwt      = require('jsonwebtoken');             // ← NEW
 const personaRoutes  = require('./api/persona');
 const secParserRoutes = require('./api/parse_filing');
-const researchRoutes  = require('./api/research');          
+const researchRoutes  = require('./api/research');
 const multer  = require('multer');
 const { createClient } = require('@supabase/supabase-js');
+const { createServer } = require('http');
+const WebSocket = require('ws');
 
 const app  = express();
+const server = createServer(app);
+const wss = new WebSocket.Server({ server });
 const PORT = process.env.PORT || 3001;
 
-// CORS
+// ---------- CORS ----------
 const corsOptions = {
   origin:
     process.env.NODE_ENV === 'production'
       ? [process.env.FRONTEND_URL || 'https://fintech-multiverse.vercel.app']
       : 'http://localhost:3000',
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type']
+  methods: ['GET', 'POST', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']   // include auth header
 };
 
-//  Middleware  
 app.use(cors(corsOptions));
 app.use(express.json());
 
@@ -32,7 +35,53 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-// Routes
+/* ---------- JWT helper ---------- */
+const authenticateToken = (req, _res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token      = authHeader && authHeader.split(' ')[1];
+  if (!token) return _res.sendStatus(401);
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) return _res.sendStatus(403);
+    req.user = user;
+    next();
+  });
+};
+
+/* ---------- in-memory editing locks ---------- */
+//  Map<researchId, { userId, userName, startedAt }>
+const editingLocks = new Map();
+
+// acquire lock
+app.post('/api/research/:id/lock', authenticateToken, (req, res) => {
+  const id      = req.params.id;
+  const current = editingLocks.get(id);
+  if (current && current.userId !== req.user.id) {
+    return res.status(409).json({ editing: true, by: current.userName });
+  }
+  editingLocks.set(id, {
+    userId: req.user.id,
+    userName: req.user.name,
+    startedAt: Date.now()
+  });
+  res.json({ editing: true, by: req.user.name });
+});
+
+// release lock
+app.delete('/api/research/:id/lock', authenticateToken, (req, res) => {
+  const id      = req.params.id;
+  const current = editingLocks.get(id);
+  if (current && current.userId === req.user.id) editingLocks.delete(id);
+  res.json({ released: true });
+});
+
+// check lock (public)
+app.get('/api/research/:id/lock', (req, res) => {
+  const lock = editingLocks.get(req.params.id);
+  if (!lock) return res.json({ editing: false });
+  res.json({ editing: true, by: lock.userName });
+});
+
+/* ---------- existing routes ---------- */
 
 // Persona
 app.post('/api/persona',      personaRoutes.handlePersonaSelection);
@@ -83,7 +132,7 @@ app.get('/health', (_, res) => {
 });
 
 // Global error handler
-app.use((err, req, res, next) => {
+app.use((err, _req, res, _next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({
     success: false,
@@ -95,10 +144,98 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Store active editors with full names
+const activeEditors = new Map();
+
+// WebSocket connection handling
+wss.on('connection', (ws) => {
+  console.log('Client connected');
+
+  ws.on('message', async (message) => {
+    try {
+      const data = JSON.parse(message);
+      
+      if (data.type === 'start_edit') {
+        const { researchId, username } = data;
+        // Get user's full name from profiles table
+        const { data: userData, error } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', username)
+          .single();
+
+        if (error) {
+          console.error('Error fetching user data:', error);
+          return;
+        }
+
+        const displayName = userData?.full_name || username;
+        
+        if (!activeEditors.has(researchId)) {
+          activeEditors.set(researchId, new Set());
+        }
+        activeEditors.get(researchId).add(displayName);
+        
+        // Broadcast to all clients
+        broadcastEditors();
+      } 
+      else if (data.type === 'stop_edit') {
+        const { researchId, username } = data;
+        // Get user's full name from profiles table
+        const { data: userData, error } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', username)
+          .single();
+
+        if (error) {
+          console.error('Error fetching user data:', error);
+          return;
+        }
+
+        const displayName = userData?.full_name || username;
+        
+        if (activeEditors.has(researchId)) {
+          activeEditors.get(researchId).delete(displayName);
+          if (activeEditors.get(researchId).size === 0) {
+            activeEditors.delete(researchId);
+          }
+        }
+        
+        // Broadcast to all clients
+        broadcastEditors();
+      }
+    } catch (error) {
+      console.error('Error processing message:', error);
+    }
+  });
+
+  ws.on('close', () => {
+    console.log('Client disconnected');
+  });
+});
+
+// Function to broadcast editors to all connected clients
+function broadcastEditors() {
+  const editorsData = {};
+  activeEditors.forEach((editors, researchId) => {
+    editorsData[researchId] = Array.from(editors);
+  });
+
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({
+        type: 'editors_update',
+        editors: editorsData
+      }));
+    }
+  });
+}
+
 // Start Server
 const startServer = () => {
   try {
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
       console.log(`API available at http://localhost:${PORT}`);
       console.log('Available endpoints:');
@@ -110,7 +247,10 @@ const startServer = () => {
       console.log('  - GET  /api/research');
       console.log('  - GET  /api/research/:id');
       console.log('  - GET  /api/research/:id/versions');
-      console.log('  - POST /api/research/:id/version');   //new
+      console.log('  - POST /api/research/:id/version');
+      console.log('  - GET  /api/research/:id/lock');      // ← NEW
+      console.log('  - POST /api/research/:id/lock');     // ← NEW
+      console.log('  - DELETE /api/research/:id/lock');   // ← NEW
       console.log('  - POST /api/upload');
       console.log('  - GET  /health');
     });

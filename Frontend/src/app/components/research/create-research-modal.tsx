@@ -118,42 +118,32 @@ const CreateResearchModal = ({ isOpen, onClose, onSuccess }) => {
 
       const authorName = profile?.full_name || session.user.email?.split('@')[0] || 'Unknown';
 
-      const { data, error } = await supabase
-        .from('research')
-        .insert([
-          {
-            title: formData.title,
-            type: formData.type,
-            content: formData.content,
-            tags: formData.tags,
-            file_url: fileUrl,
-            author: authorName,
-            status: 'published',
-            relevance_score: 0
-          }
-        ])
-        .select()
-        .single();
+      // Create research using the backend API
+      const response = await fetch('http://localhost:3001/api/research/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: formData.title,
+          type: formData.type,
+          content: formData.content,
+          tags: formData.tags,
+          fileUrl: fileUrl,
+          username: authorName,
+          relevance_score: 0
+        }),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to create research');
+      }
 
-      // Create initial version
-      const { error: versionError } = await supabase
-        .from('research_versions')
-        .insert([
-          {
-            research_id: data.id,
-            version_number: 1,
-            title: formData.title,
-            type: formData.type,
-            content: formData.content,
-            tags: formData.tags,
-            author: authorName,
-            file_url: fileUrl
-          }
-        ]);
-
-      if (versionError) throw versionError;
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to create research');
+      }
 
       onSuccess();
     } catch (error: any) {

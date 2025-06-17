@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,8 @@ import {
   X,
   Clock,
   User,
-  Search
+  Search,
+  Lock
 } from 'lucide-react';
 import CreateResearchModal from '../components/research/create-research-modal';
 import AddVersionModal from '../components/research/AddVersionModel';
@@ -61,7 +62,17 @@ const mockResearchItems: ResearchItem[] = [
 
 function stripHtml(html: string) {
   if (!html) return '';
-  return html.replace(/<[^>]+>/g, '');
+  // Create a temporary div element to parse HTML
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = html;
+  // Get the text content without HTML tags
+  return tempDiv.textContent || tempDiv.innerText || '';
+}
+
+// Alternative regex-based HTML stripping for server-side or when DOM is not available
+function stripHtmlRegex(html: string) {
+  if (!html) return '';
+  return html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').trim();
 }
 
 /* ---------- component ---------- */
@@ -91,6 +102,9 @@ export default function ResearchMemory() {
     type: string;
   }>({ open: false, researchId: '', title: '', type: '' });
 
+  const [activeEditors, setActiveEditors] = useState<Record<string, string[]>>({});
+  const [ws, setWs] = useState<WebSocket | null>(null);
+
   const fetchResearchItems = async () => {
     try {
       setIsLoading(true);
@@ -101,6 +115,9 @@ export default function ResearchMemory() {
         .order('created_at', { ascending: false });
 
       if (itemsError) throw itemsError;
+
+      // Initialize versions state for all items
+      const initialVersions: Record<string, ResearchVersion[]> = {};
 
       const itemsWithVersions = await Promise.all(
         items.map(async (item) => {
@@ -126,6 +143,9 @@ export default function ResearchMemory() {
             ...(versions || [])
           ];
 
+          // Store versions in the versions state
+          initialVersions[item.id] = allVersions;
+
           return {
             ...item,
             versions: allVersions
@@ -133,7 +153,9 @@ export default function ResearchMemory() {
         })
       );
 
+      // Update both states at once
       setResearchItems(itemsWithVersions);
+      setVersions(initialVersions);
     } catch (err: any) {
       console.error('Error fetching research items:', err);
       setError(err.message);
@@ -149,18 +171,19 @@ export default function ResearchMemory() {
   const toggleVersions = async (research: ResearchItem) => {
     setOpenDropdown(d => (d === research.id ? null : research.id));
 
-    if (!versions[research.id]) {
-      console.log(`Fetching versions for research ID: ${research.id}`);
+    // If versions are already loaded, no need to fetch again
+    if (versions[research.id]) {
+      return;
+    }
+
+    try {
       const { data: versions, error: versionsError } = await supabase
         .from('research_versions')
         .select('*')
         .eq('research_id', research.id)
         .order('version_number', { ascending: true });
 
-      if (versionsError) {
-        console.error(`Failed to fetch versions for ${research.id}:`, versionsError);
-        return;
-      }
+      if (versionsError) throw versionsError;
 
       // Add the research item itself as version 0
       const allVersions = [
@@ -176,8 +199,10 @@ export default function ResearchMemory() {
         ...(versions || [])
       ];
 
-      console.log(`Received versions for ${research.id}:`, allVersions);
       setVersions(v => ({ ...v, [research.id]: allVersions }));
+    } catch (error) {
+      console.error('Error fetching versions:', error);
+      setError('Failed to load versions');
     }
   };
 
@@ -230,10 +255,94 @@ export default function ResearchMemory() {
   };
 
   const filteredResearch = researchItems.filter(item => {
+    const cleanContent = stripHtmlRegex(item.content);
     return item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           item.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           cleanContent.toLowerCase().includes(searchTerm.toLowerCase()) ||
            item.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
   });
+
+  // WebSocket connection
+  const connectWebSocket = useCallback(() => {
+    const socket = new WebSocket(process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001');
+
+    socket.onopen = () => {
+      console.log('WebSocket connected');
+    };
+
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'editors_update') {
+        // Filter out current user from the editors list
+        const filteredEditors = {};
+        Object.entries(data.editors).forEach(([researchId, editors]) => {
+          const otherEditors = (editors as string[]).filter(editor => editor !== user?.email);
+          if (otherEditors.length > 0) {
+            filteredEditors[researchId] = otherEditors;
+          }
+        });
+        setActiveEditors(filteredEditors);
+      }
+    };
+
+    socket.onclose = () => {
+      console.log('WebSocket disconnected');
+      setTimeout(connectWebSocket, 5000);
+    };
+
+    setWs(socket);
+    return socket;
+  }, [user?.email]);
+
+  useEffect(() => {
+    const socket = connectWebSocket();
+    return () => {
+      socket.close();
+    };
+  }, [connectWebSocket]);
+
+  // Function to notify server when starting to edit
+  const notifyEditing = useCallback((researchId: string) => {
+    if (ws?.readyState === WebSocket.OPEN && user?.id) {
+      ws.send(JSON.stringify({
+        type: 'start_edit',
+        researchId,
+        username: user.id
+      }));
+    }
+  }, [ws, user]);
+
+  // Function to notify server when stopping edit
+  const notifyStoppedEditing = useCallback((researchId: string) => {
+    if (ws?.readyState === WebSocket.OPEN && user?.id) {
+      ws.send(JSON.stringify({
+        type: 'stop_edit',
+        researchId,
+        username: user.id
+      }));
+    }
+  }, [ws, user]);
+
+  // Update the modal open/close handlers to include editing notifications
+  const handleOpenAddVersion = (research: ResearchItem) => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+    setAddVerModal({
+      open: true,
+      researchId: research.id,
+      title: research.title,
+      type: research.type
+    });
+    notifyEditing(research.id);
+  };
+
+  const handleCloseAddVersion = () => {
+    if (addVerModal.researchId) {
+      notifyStoppedEditing(addVerModal.researchId);
+    }
+    setAddVerModal(p => ({ ...p, open: false }));
+  };
 
   if (isLoading) {
     return (
@@ -304,8 +413,20 @@ export default function ResearchMemory() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
-            {filteredResearch.map(research => (
-              <Card key={research.id} className="relative hover:shadow-lg transition-all duration-300 bg-white/5 backdrop-blur-lg border border-white/10 hover:bg-white/10">
+            {filteredResearch.map((research) => (
+              <Card
+                key={research.id}
+                className="relative hover:shadow-lg transition-all duration-300 bg-white/5 backdrop-blur-lg border border-white/10 hover:bg-white/10"
+              >
+                {activeEditors[research.id]?.length > 0 && (
+                  <Badge className="absolute -top-2 -right-2 z-10 bg-red-600 text-white flex items-center">
+                    <Lock className="w-3 h-3 mr-1" />
+                    {activeEditors[research.id].length === 1
+                      ? `${activeEditors[research.id][0]} is editing...`
+                      : `${activeEditors[research.id].length} people are editing...`}
+                  </Badge>
+                )}
+
                 {/* clickable header */}
                 <CardHeader
                   onClick={() => toggleVersions(research)}
@@ -339,8 +460,8 @@ export default function ResearchMemory() {
                 {/* versions dropdown */}
                 {openDropdown === research.id && (
                   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                    <div className="relative bg-gray-900 border border-gray-700 rounded-lg shadow-xl w-[800px] max-h-[80vh] overflow-hidden">
-                      <div className="absolute top-4 right-4">
+                    <div className="relative bg-gray-900 border border-gray-700 rounded-lg shadow-xl w-[800px] max-h-[80vh] overflow-hidden flex flex-col">
+                      <div className="absolute top-4 right-4 z-20">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -351,12 +472,50 @@ export default function ResearchMemory() {
                           <X className="w-5 h-5 text-gray-300" />
                         </button>
                       </div>
-                      <div className="p-6">
-                        <h3 className="text-xl font-semibold mb-4 flex items-center gap-2 text-white">
+                      
+                      {/* Header */}
+                      <div className="p-6 pb-4 border-b border-gray-700">
+                        <h3 className="text-xl font-semibold flex items-center gap-2 text-white">
                           <GitBranch className="w-5 h-5 text-blue-400" />
                           {research.title} - Versions
                         </h3>
-                        <div className="overflow-y-auto max-h-[60vh]">
+                      </div>
+
+                      {/* Scrollable content with controls */}
+                      <div className="flex-1 relative">
+                        {/* Scroll Up Button */}
+                        <button
+                          onClick={() => {
+                            const scrollContainer = document.getElementById(`versions-scroll-${research.id}`);
+                            if (scrollContainer) {
+                              scrollContainer.scrollBy({ top: -200, behavior: 'smooth' });
+                            }
+                          }}
+                          className="absolute top-2 right-2 z-10 p-2 bg-gray-800 hover:bg-gray-700 rounded-full transition-colors shadow-lg"
+                          title="Scroll Up"
+                        >
+                          <ChevronDown className="w-4 h-4 text-gray-300 rotate-180" />
+                        </button>
+
+                        {/* Scroll Down Button */}
+                        <button
+                          onClick={() => {
+                            const scrollContainer = document.getElementById(`versions-scroll-${research.id}`);
+                            if (scrollContainer) {
+                              scrollContainer.scrollBy({ top: 200, behavior: 'smooth' });
+                            }
+                          }}
+                          className="absolute bottom-2 right-2 z-10 p-2 bg-gray-800 hover:bg-gray-700 rounded-full transition-colors shadow-lg"
+                          title="Scroll Down"
+                        >
+                          <ChevronDown className="w-4 h-4 text-gray-300" />
+                        </button>
+
+                        <div 
+                          id={`versions-scroll-${research.id}`}
+                          className="overflow-y-auto h-full p-4 pr-12"
+                          style={{ maxHeight: 'calc(80vh - 180px)' }}
+                        >
                           <table className="w-full text-sm text-gray-300">
                             <thead className="sticky top-0 bg-gray-900 z-10">
                               <tr className="border-b border-gray-700">
@@ -371,7 +530,7 @@ export default function ResearchMemory() {
                               {versions[research.id]?.map(v => (
                                 <tr 
                                   key={v.id} 
-                                  className="bg-gray-800 hover:bg-gray-700 cursor-pointer text-gray-300"
+                                  className="bg-gray-800 hover:bg-gray-700 cursor-pointer text-gray-300 border-b border-gray-700"
                                   onClick={() =>
                                     setVersionModal({
                                       open: true,
@@ -380,20 +539,20 @@ export default function ResearchMemory() {
                                     })
                                   }
                                 >
-                                  <td className="py-2 px-3">
+                                  <td className="py-3 px-4">
                                     <div className="flex items-center">
                                       <GitBranch className="w-4 h-4 mr-2 text-blue-400" />
                                       {v.version_number}
                                     </div>
                                   </td>
-                                  <td className="py-2 px-3">{v.author}</td>
-                                  <td className="py-2 px-3">{new Date(v.created_at).toLocaleDateString()}</td>
-                                  <td className="py-2 px-3">
+                                  <td className="py-3 px-4">{v.author}</td>
+                                  <td className="py-3 px-4">{new Date(v.created_at).toLocaleDateString()}</td>
+                                  <td className="py-3 px-4">
                                     <div className="max-w-[200px] truncate">
-                                      {v.content.replace(/<[^>]*>/g, '')}
+                                      {stripHtmlRegex(v.content)}
                                     </div>
                                   </td>
-                                  <td className="py-2 px-3">
+                                  <td className="py-3 px-4">
                                     {v.file_url && (
                                       <a 
                                         href={v.file_url}
@@ -411,27 +570,17 @@ export default function ResearchMemory() {
                             </tbody>
                           </table>
                         </div>
+                      </div>
 
-                        <div className="border-t border-gray-700 mt-4 pt-4">
-                          <button
-                            onClick={() => {
-                              if (!user) {
-                                router.push('/login');
-                                return;
-                              }
-                              setAddVerModal({
-                                open: true,
-                                researchId: research.id,
-                                title: research.title,
-                                type: research.type
-                              });
-                            }}
-                            className="flex items-center px-4 py-2 text-blue-400 hover:bg-gray-800 text-sm rounded-md w-full transition-colors"
-                          >
-                            <PlusCircle className="w-4 h-4 mr-2" />
-                            Add version
-                          </button>
-                        </div>
+                      {/* Fixed Footer with Add Version Button */}
+                      <div className="border-t border-gray-700 p-4 bg-gray-900">
+                        <button
+                          onClick={() => handleOpenAddVersion(research)}
+                          className="flex items-center justify-center px-4 py-2 text-blue-400 hover:bg-gray-800 text-sm rounded-md w-full transition-colors"
+                        >
+                          <PlusCircle className="w-4 h-4 mr-2" />
+                          Add version
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -441,7 +590,7 @@ export default function ResearchMemory() {
                 <CardContent>
                   <div className="space-y-4">
                     <p className="text-gray-300 line-clamp-3">
-                      {research.content}
+                      {stripHtmlRegex(research.content)}
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {research.tags.map(tag => (
@@ -498,10 +647,10 @@ export default function ResearchMemory() {
           researchId={addVerModal.researchId}
           title={addVerModal.title}
           type={addVerModal.type}
-          onClose={() => setAddVerModal(p => ({ ...p, open: false }))}
+          onClose={handleCloseAddVersion}
           onSuccess={() => {
             refreshVersions(addVerModal.researchId);
-            setAddVerModal(p => ({ ...p, open: false }));
+            handleCloseAddVersion();
           }}
         />
 
@@ -534,6 +683,12 @@ const VersionDetailsModal = ({
 }) => {
   if (!isOpen || !version) return null;
 
+  // Helper function to strip HTML for modal content
+  const stripHtmlRegex = (html: string) => {
+    if (!html) return '';
+    return html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').trim();
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-gray-900 rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-gray-700">
@@ -564,7 +719,7 @@ const VersionDetailsModal = ({
               <h3 className="font-semibold mb-2 text-white">Content</h3>
               <div className="prose max-w-none">
                 <p className="whitespace-pre-wrap text-gray-300">
-                  {version.content.replace(/<[^>]*>/g, '')}
+                  {stripHtmlRegex(version.content)}
                 </p>
               </div>
             </div>

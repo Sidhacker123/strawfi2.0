@@ -60,7 +60,7 @@ const KnowledgeRepository: React.FC<KnowledgeRepositoryProps> = ({ user }) => {
   const supabase = createClientComponentClient();
 
   useEffect(() => {
-    const getUserInfo = async () => {
+    const fetchUserInfo = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user?.email) {
         // Get user's full name from your user profile table
@@ -79,17 +79,12 @@ const KnowledgeRepository: React.FC<KnowledgeRepositoryProps> = ({ user }) => {
             .join('')
             .toUpperCase();
           setUserInitials(initials);
-        } else {
-          // Fallback to email if no profile exists
-          const emailName = user.email.split('@')[0];
-          setUserName(emailName);
-          setUserInitials(emailName.substring(0, 2).toUpperCase());
         }
       }
     };
 
-    getUserInfo();
-  }, [supabase]);
+    fetchUserInfo();
+  }, []);
 
   // Mock data
   const researchMemories = [
