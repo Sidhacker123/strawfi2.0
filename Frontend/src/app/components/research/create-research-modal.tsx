@@ -118,7 +118,7 @@ const CreateResearchModal = ({ isOpen, onClose, onSuccess }) => {
 
       const authorName = profile?.full_name || session.user.email?.split('@')[0] || 'Unknown';
 
-      // Create research using the backend API
+        // Create research using the backend API
       const response = await fetch('http://localhost:3001/api/research/create', {
         method: 'POST',
         headers: {
