@@ -81,7 +81,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
 
       await fetchProfile();
-      router.push('/');
     } finally {
       setLoading(false);
     }
@@ -210,19 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (session) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-
-          setUser({
-            id: session.user.id,
-            email: session.user.email!,
-            full_name: profile?.full_name,
-            team_id: profile?.team_id,
-            role: profile?.role,
-          });
+          await fetchProfile();
         } else {
           setUser(null);
         }
@@ -241,25 +228,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state changed:', event, session?.user?.id);
       if (session) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-
-        setUser({
-          id: session.user.id,
-          email: session.user.email!,
-          full_name: profile?.full_name,
-          team_id: profile?.team_id,
-          role: profile?.role,
-        });
+        await fetchProfile();
       } else {
         setUser(null);
       }
     });
 
-    return () => subscription.unsubscribe();
+    // Set up session refresh
+    const refreshSession = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error('Error refreshing session:', error);
+        return;
+      }
+      if (session) {
+        await fetchProfile();
+      }
+    };
+
+    // Refresh session every 5 minutes
+    const refreshInterval = setInterval(refreshSession, 5 * 60 * 1000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearInterval(refreshInterval);
+    };
   }, []);
 
   const value: AuthContextType = {

@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // List of public routes that don't require authentication
-const publicRoutes = ['/login', '/register', '/auth/callback'];
+const publicRoutes = ['/', '/login', '/register', '/auth/callback'];
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
@@ -17,7 +17,7 @@ export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
 
   // If user is signed in and trying to access login/register pages, redirect to home
-  if (session && publicRoutes.includes(path)) {
+  if (session && (path === '/login' || path === '/register')) {
     return NextResponse.redirect(new URL('/', req.url));
   }
 

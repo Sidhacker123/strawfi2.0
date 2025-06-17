@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Mail, Lock, AlertCircle } from 'lucide-react';
 
 function LoginForm() {
-  const { signIn } = useAuth();
+  const { signIn, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirectTo') || '/';
@@ -16,6 +16,13 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      router.push(redirectTo);
+    }
+  }, [user, redirectTo, router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -23,12 +30,17 @@ function LoginForm() {
 
     try {
       await signIn(email, password);
-      router.push(redirectTo);
+      // The redirect will be handled by the useEffect above
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSignUp = (e: React.MouseEvent) => {
+    e.preventDefault();
+    router.push('/register');
   };
 
   return (
@@ -98,7 +110,7 @@ function LoginForm() {
         <p className="text-center text-sm text-slate-600">
           Don't have an account?{' '}
           <button
-            onClick={() => router.push('/register')}
+            onClick={handleSignUp}
             className="font-medium text-blue-600 hover:text-blue-500"
           >
             Sign up

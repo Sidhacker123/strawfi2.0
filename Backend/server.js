@@ -2,7 +2,7 @@
 require('dotenv').config();
 const express  = require('express');
 const cors     = require('cors');
-const jwt      = require('jsonwebtoken');             // ← NEW
+const jwt      = require('jsonwebtoken');             
 const personaRoutes  = require('./api/persona');
 const secParserRoutes = require('./api/parse_filing');
 const researchRoutes  = require('./api/research');
@@ -28,10 +28,9 @@ const corsOptions = {
 =======
   origin: process.env.NODE_ENV === 'production'
     ? [
-        process.env.FRONTEND_URL || 'https://fintech-multiverse.vercel.app',
-        'https://testingfinalmo.vercel.app'
+        process.env.FRONTEND_URL ||'https://testingfinalmo.vercel.app'
       ]
-    : ['http://localhost:3000', 'http://localhost:5173'], // Added Vite's default port
+    : ['http://localhost:3000'], 
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: true,
