@@ -36,90 +36,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  // Fix hydration mismatch by ensuring client-only rendering
-  useEffect(() => {
-    setIsHydrated(true);
-  }, []);
+  const [initialized, setInitialized] = useState(false);
 
   /************ helpers ************/
-  const fetchProfile = async () => {
+  const fetchProfile = async (userId?: string) => {
     try {
-      console.log('🔄 Fetching fresh session and profile...');
-      
-      // Force refresh the session to sync with server
-      const { data: { session }, error } = await supabase.auth.refreshSession();
-      
-      if (error) {
-        console.error('❌ Session refresh error:', error);
-        // Try getting existing session as fallback
-        const { data: fallbackData } = await supabase.auth.getSession();
-        if (!fallbackData.session) {
-          setUser(null);
-          return;
-        }
-        // Use fallback session
-        const session = fallbackData.session;
-      }
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
 
-      if (!session) {
-        console.log('🚫 No session found');
+      if (error) {
+        console.error('Session error:', error);
         setUser(null);
         return;
       }
 
-      console.log('✅ Session found for user:', session.user.id);
-
-      // Fetch profile with retry logic
-      let profile = null;
-      let retries = 0;
-      
-      while (retries < 3) {
-        const { data, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-
-        if (!profileError) {
-          profile = data;
-          break;
-        }
-
-        console.warn(`❌ Profile fetch attempt ${retries + 1} failed:`, profileError);
-        retries++;
-        
-        if (retries < 3) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
+      if (!session) {
+        setUser(null);
+        return;
       }
 
-      const userProfile: UserProfile = {
+      const targetUserId = userId || session.user.id;
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', targetUserId)
+        .single();
+
+      if (profileError) {
+        console.error('Profile fetch error:', profileError);
+        // Still set basic user info even if profile fetch fails
+        setUser({
+          id: session.user.id,
+          email: session.user.email!,
+        });
+        return;
+      }
+
+      setUser({
         id: session.user.id,
         email: session.user.email!,
         full_name: profile?.full_name,
         team_id: profile?.team_id,
         role: profile?.role,
-      };
-
-      console.log('✅ Setting user profile:', userProfile);
-      setUser(userProfile);
-      
-      // Refresh router to sync middleware
-      router.refresh();
-      
+      });
     } catch (e) {
-      console.error('❌ fetchProfile error:', e);
+      console.error('fetchProfile error:', e);
       setUser(null);
     }
   };
 
   /************ actions ************/
   const signIn = async (email: string, password: string) => {
-    console.log('🔑 Starting sign in...');
     setLoading(true);
-    
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -129,11 +100,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
 
       if (data.session) {
-        console.log('✅ Sign in successful');
-        await fetchProfile();
+        await fetchProfile(data.user.id);
+        // Force router refresh to update middleware
+        router.refresh();
       }
     } catch (error) {
-      console.error('❌ Sign in error:', error);
+      console.error('Sign in error:', error);
       throw error;
     } finally {
       setLoading(false);
@@ -147,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   ) => {
     setLoading(true);
     try {
-      console.log('📝 Starting signup...');
+      console.log('Starting signup process for:', email);
       
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -160,31 +132,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       });
       
-      if (error) throw error;
-      if (!data.user) throw new Error('Could not obtain new user id');
+      if (error) {
+        console.error('Signup error:', error);
+        throw error;
+      }
+      
+      if (!data.user) {
+        console.error('No user data returned');
+        throw new Error('Could not obtain new user id');
+      }
 
+      console.log('Signup successful, checking verification status');
+      
+      // Check if email verification is required
       const needsEmailVerification = !data.session;
-      console.log('📧 Needs email verification:', needsEmailVerification);
+      console.log('Needs email verification:', needsEmailVerification);
 
       if (!needsEmailVerification && data.session) {
+        console.log('No verification needed, proceeding with profile setup');
+
         if (fullName) {
+          console.log('Updating profile with full name');
           const { error: profileErr } = await supabase
             .from('profiles')
             .update({ full_name: fullName })
             .eq('id', data.user.id);
 
           if (profileErr) {
-            console.error('❌ Profile update error:', profileErr);
+            console.error('Profile update error:', profileErr);
+            // Don't throw here, just log the error
           }
         }
 
-        await fetchProfile();
+        await fetchProfile(data.user.id);
         router.push('/knowledge-repo');
+        router.refresh();
+      } else {
+        console.log('Email verification required, verification email should be sent');
       }
 
       return { needsEmailVerification };
     } catch (error) {
-      console.error('❌ Signup error:', error);
+      console.error('Signup process error:', error);
       throw error;
     } finally {
       setLoading(false);
@@ -192,29 +181,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    console.log('🚪 Signing out...');
     try {
-      // Clear user state immediately
-      setUser(null);
-      
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
 
-      // Force refresh to clear all cached data
+      setUser(null);
       router.push('/login');
       router.refresh();
-      
-      // Clear any potential cached data
-      if (typeof window !== 'undefined') {
-        window.location.reload();
-      }
     } catch (error) {
-      console.error('❌ Sign out error:', error);
+      console.error('Sign out error:', error);
       throw error;
     }
   };
 
-  const refreshProfile = fetchProfile;
+  const refreshProfile = () => fetchProfile();
 
   const checkEmailVerification = async () => {
     try {
@@ -222,75 +202,72 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
       return !!session;
     } catch (error) {
-      console.error('❌ Error checking email verification:', error);
+      console.error('Error checking email verification:', error);
       return false;
     }
   };
 
   /************ init ************/
   useEffect(() => {
-    if (!isHydrated) return;
-
-    let isMounted = true;
-
     const initializeAuth = async () => {
       try {
-        console.log('🚀 Initializing auth (client-side)...');
-        setLoading(true);
+        console.log('Initializing auth...');
+        
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting session:', error);
+          setUser(null);
+          setLoading(false);
+          setInitialized(true);
+          return;
+        }
 
-        await fetchProfile();
-      } catch (e) {
-        console.error('❌ Auth initialization error:', e);
-        if (isMounted) {
+        if (session) {
+          console.log('Session found, fetching profile...');
+          await fetchProfile(session.user.id);
+        } else {
+          console.log('No session found');
           setUser(null);
         }
+      } catch (e) {
+        console.error('Auth initialization error:', e);
+        setUser(null);
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        setLoading(false);
+        setInitialized(true);
       }
     };
 
-    initializeAuth();
+    if (!initialized) {
+      initializeAuth();
+    }
 
-    // Set up auth state listener
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!isMounted) return;
+      console.log('Auth state changed:', event, session?.user?.id);
       
-      console.log('🔔 Auth state changed:', event, session?.user?.id);
-      
-      switch (event) {
-        case 'SIGNED_IN':
-          if (session) {
-            console.log('✅ User signed in, fetching profile...');
-            await fetchProfile();
+      if (event === 'SIGNED_IN') {
+        if (session) {
+          await fetchProfile(session.user.id);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+      } else if (event === 'TOKEN_REFRESHED') {
+        if (session) {
+          // Only fetch profile if we don't have user data yet
+          if (!user) {
+            await fetchProfile(session.user.id);
           }
-          break;
-          
-        case 'SIGNED_OUT':
-          console.log('🚪 User signed out');
-          setUser(null);
-          break;
-          
-        case 'TOKEN_REFRESHED':
-          if (session && !user) {
-            console.log('🔄 Token refreshed, fetching profile...');
-            await fetchProfile();
-          }
-          break;
-          
-        default:
-          break;
+        }
       }
     });
 
     return () => {
-      isMounted = false;
       subscription.unsubscribe();
     };
-  }, [isHydrated]);
+  }, [initialized, user]); // Add user to dependencies
 
   const value: AuthContextType = {
     user,
@@ -301,11 +278,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshProfile,
     checkEmailVerification,
   };
-
-  // Prevent hydration mismatch by not rendering until hydrated
-  if (!isHydrated) {
-    return <div>{children}</div>;
-  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

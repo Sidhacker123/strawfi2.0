@@ -10,69 +10,45 @@ export async function middleware(req: NextRequest) {
   const supabase = createMiddlewareClient({ req, res });
 
   try {
-    // Get current path
-    const path = req.nextUrl.pathname;
-    
-    // Always refresh session to ensure it's valid and synced
+    // Refresh session if expired - required for Server Components
     const {
       data: { session },
       error
-    } = await supabase.auth.refreshSession();
+    } = await supabase.auth.getSession();
 
     if (error) {
-      console.error('Middleware session refresh error:', error);
-      // Fallback to getting existing session
-      const fallback = await supabase.auth.getSession();
-      if (fallback.error || !fallback.data.session) {
-        // Clear any stale cookies
-        res.cookies.delete('sb-access-token');
-        res.cookies.delete('sb-refresh-token');
-        
-        // Redirect to login if not on public route
-        if (!publicRoutes.includes(path)) {
-          const redirectUrl = new URL('/login', req.url);
-          redirectUrl.searchParams.set('redirectTo', path);
-          return NextResponse.redirect(redirectUrl);
-        }
-        return res;
-      }
+      console.error('Middleware session error:', error);
     }
+
+    // Get the current path
+    const path = req.nextUrl.pathname;
 
     console.log('Middleware - Path:', path, 'Has session:', !!session);
 
-    // If user is signed in and trying to access auth pages, redirect to home
+    // If user is signed in and trying to access login/register pages, redirect to home
     if (session && (path === '/login' || path === '/register')) {
-      console.log('Authenticated user accessing auth pages, redirecting');
+      console.log('Authenticated user accessing auth pages, redirecting to home');
       return NextResponse.redirect(new URL('/', req.url));
     }
 
-    // If user is not signed in and trying to access protected routes
+    // If user is not signed in and trying to access protected routes, redirect to login
     if (!session && !publicRoutes.includes(path)) {
-      console.log('Unauthenticated user accessing protected route');
+      console.log('Unauthenticated user accessing protected route, redirecting to login');
       const redirectUrl = new URL('/login', req.url);
       redirectUrl.searchParams.set('redirectTo', path);
       return NextResponse.redirect(redirectUrl);
     }
 
-    // Set proper headers to prevent caching of authenticated content
+    // Set cache control headers for better performance with auth
     res.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
     res.headers.set('Pragma', 'no-cache');
     res.headers.set('Expires', '0');
-    
-    // Add session info to response headers for debugging
-    if (session) {
-      res.headers.set('X-User-ID', session.user.id);
-    }
 
     return res;
   } catch (error) {
     console.error('Middleware error:', error);
     
-    // Clear potentially corrupted cookies
-    res.cookies.delete('sb-access-token');
-    res.cookies.delete('sb-refresh-token');
-    
-    // Redirect to login for protected routes
+    // On error, allow access to public routes but redirect protected routes to login
     const path = req.nextUrl.pathname;
     if (!publicRoutes.includes(path)) {
       const redirectUrl = new URL('/login', req.url);
@@ -92,7 +68,8 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public folder
+     * - api routes that don't need auth
      */
-    '/((?!_next/static|_next/image|favicon.ico|public/).*)',
+    '/((?!_next/static|_next/image|favicon.ico|public/|api/health).*)',
   ],
 };
