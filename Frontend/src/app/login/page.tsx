@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Mail, Lock, AlertCircle } from 'lucide-react';
 
 function LoginForm() {
-  const { signIn, user, loading: authLoading } = useAuth();
+  const { signIn, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirectTo') || '/';
@@ -16,13 +16,12 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Redirect if already logged in - but wait for auth to initialize
+  // Redirect if already logged in
   useEffect(() => {
-    if (!authLoading && user) {
-      console.log('User is authenticated, redirecting to:', redirectTo);
+    if (user) {
       router.push(redirectTo);
     }
-  }, [user, redirectTo, router, authLoading]);
+  }, [user, redirectTo, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,10 +30,9 @@ function LoginForm() {
 
     try {
       await signIn(email, password);
-      // signIn will handle the redirect after successful authentication
+      // The redirect will be handled by the useEffect above
     } catch (err: any) {
-      console.error('Login error:', err);
-      setError(err.message || 'An error occurred during sign in');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -44,29 +42,6 @@ function LoginForm() {
     e.preventDefault();
     router.push('/register');
   };
-
-  // Show loading while auth is initializing
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-slate-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Don't render form if user is already authenticated (prevents flash)
-  if (user) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="text-center">
-          <p className="text-slate-600">Redirecting...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
@@ -100,7 +75,6 @@ function LoginForm() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={loading}
               />
             </div>
           </div>
@@ -119,7 +93,6 @@ function LoginForm() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={loading}
               />
             </div>
           </div>
@@ -139,7 +112,6 @@ function LoginForm() {
           <button
             onClick={handleSignUp}
             className="font-medium text-blue-600 hover:text-blue-500"
-            disabled={loading}
           >
             Sign up
           </button>
@@ -151,14 +123,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-slate-600">Loading...</p>
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<div>Loading...</div>}>
       <LoginForm />
     </Suspense>
   );
