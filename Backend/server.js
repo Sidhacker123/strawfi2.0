@@ -28,7 +28,8 @@ const corsOptions = {
 =======
   origin: process.env.NODE_ENV === 'production'
     ? [
-        process.env.FRONTEND_URL ||'https://testingfinalmo.vercel.app'
+        process.env.FRONTEND_URL || 'https://testingfinalmo.vercel.app',
+        'https://testingfinalmo.vercel.app'
       ]
     : ['http://localhost:3000'], 
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
