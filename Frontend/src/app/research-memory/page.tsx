@@ -78,7 +78,7 @@ function stripHtmlRegex(html: string) {
 /* ---------- component ---------- */
 
 export default function ResearchMemory() {
-  const { user } = useAuth();
+  const { user, jwt } = useAuth();
   const router = useRouter();
   const supabase = createClientComponentClient();
   const [researchItems, setResearchItems] = useState<ResearchItem[]>([]);
@@ -342,6 +342,28 @@ export default function ResearchMemory() {
       notifyStoppedEditing(addVerModal.researchId);
     }
     setAddVerModal(p => ({ ...p, open: false }));
+  };
+
+  // Update lock/unlock requests to send JWT
+  const acquireLock = async (researchId: string) => {
+    if (!jwt) return;
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/research/${researchId}/lock`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${jwt}`,
+      },
+    });
+  };
+  const releaseLock = async (researchId: string) => {
+    if (!jwt) return;
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/research/${researchId}/lock`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${jwt}`,
+      },
+    });
   };
 
   if (isLoading) {

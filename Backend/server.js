@@ -138,6 +138,15 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   }
 });
 
+// Endpoint to issue JWT for a user
+app.post('/api/get-jwt', async (req, res) => {
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ error: 'Missing userId' });
+  // Optionally, verify userId with Supabase or your DB here
+  const token = jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '1h' });
+  res.json({ token });
+});
+
 // Health check
 app.get('/health', (_, res) => {
   res.status(200).json({ status: 'ok', message: 'API is running' });

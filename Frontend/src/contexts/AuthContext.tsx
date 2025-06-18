@@ -26,6 +26,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   checkEmailVerification: () => Promise<boolean>;
+  jwt: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [jwt, setJwt] = useState<string | null>(null);
 
   /************ helpers ************/
   const fetchProfile = async () => {
@@ -67,6 +69,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('fetchProfile error:', e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchJwt = async (userId: string) => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/get-jwt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      const { token } = await res.json();
+      setJwt(token);
+      localStorage.setItem('jwt', token);
+      return token;
+    } catch (e) {
+      console.error('Failed to fetch JWT:', e);
+      setJwt(null);
+      localStorage.removeItem('jwt');
+      return null;
     }
   };
 
@@ -242,7 +263,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const value: AuthContextType = {
+  // Fetch JWT after login or on refresh if user exists
+  useEffect(() => {
+    if (user && user.id) {
+      fetchJwt(user.id);
+    } else {
+      setJwt(null);
+      localStorage.removeItem('jwt');
+    }
+  }, [user]);
+
+  const value: AuthContextType & { jwt: string | null } = {
     user,
     loading,
     signIn,
@@ -250,6 +281,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut,
     refreshProfile,
     checkEmailVerification,
+    jwt,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
