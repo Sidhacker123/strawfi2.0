@@ -7,6 +7,12 @@
     }
   ],
   "env": {
+<<<<<<< HEAD
     "NEXT_PUBLIC_API_URL": "https://fintech-multiverse-backend.onrender.com"
+=======
+    "NEXT_PUBLIC_SUPABASE_URL": "@next_public_supabase_url",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@next_public_supabase_anon_key",
+    "NEXT_PUBLIC_API_URL": "@next_public_api_url"
+>>>>>>> cd98ce1 (pretty)
   }
 } 

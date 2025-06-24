@@ -1,5 +1,4 @@
 // API route handler for persona selection
-// This is a mock implementation for the prototype
 
 const mockSupabase = require('../../Database/mockDb');
 

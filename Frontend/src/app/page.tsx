@@ -5,8 +5,11 @@ import { useState, useEffect } from "react";
 import { FaRobot, FaChartLine, FaBrain, FaArrowRight } from "react-icons/fa";
 import { AnimatedSection } from "./components/AnimatedSection";
 import Header from "./components/Header";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Home() {
+  const { user } = useAuth();
+
   return (
     <main className="min-h-screen bg-black text-white">
       <Header />
@@ -37,9 +40,9 @@ export default function Home() {
         </AnimatedSection>
 
         {/* Features Grid */}
-        <AnimatedSection animation="fade">
+        <AnimatedSection className="mt-16">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            <Link href="/knowledge-repo" className="block group">
+            <Link href={user ? "/knowledge-repo" : "/login"} className="block group">
               <div className="bg-white/5 backdrop-blur-lg p-8 rounded-xl border border-white/10 hover:bg-white/10 transition-all h-full">
                 <div className="text-4xl mb-6 bg-gradient-to-r from-white to-gray-400 w-16 h-16 rounded-full flex items-center justify-center">
                   <FaBrain className="text-black" />
@@ -55,7 +58,7 @@ export default function Home() {
               </div>
             </Link>
 
-            <Link href="/tools" className="block group">
+            <Link href={user ? "/tools" : "/login"} className="block group">
               <div className="bg-white/5 backdrop-blur-lg p-8 rounded-xl border border-white/10 hover:bg-white/10 transition-all h-full">
                 <div className="text-4xl mb-6 bg-gradient-to-r from-white to-gray-400 w-16 h-16 rounded-full flex items-center justify-center">
                   <FaChartLine className="text-black" />
@@ -71,7 +74,7 @@ export default function Home() {
               </div>
             </Link>
 
-            <Link href="/persona" className="block group">
+            <Link href={user ? "/persona" : "/login"} className="block group">
               <div className="bg-white/5 backdrop-blur-lg p-8 rounded-xl border border-white/10 hover:bg-white/10 transition-all h-full">
                 <div className="text-4xl mb-6 bg-gradient-to-r from-white to-gray-400 w-16 h-16 rounded-full flex items-center justify-center">
                   <FaRobot className="text-black" />

@@ -1,23 +1,28 @@
-import './globals.css'
-import { AuthProvider } from '@/contexts/AuthContext'
+import { Inter } from 'next/font/google';
+import './globals.css';
+import { Providers } from './providers';
+
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
-  title: 'Financial Insights',
-  description: 'Your financial insights application',
-}
+  title: 'Strawfi',
+  description: 'Financial Multiverse',
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
     <html lang="en">
-      <body>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+      <body className={inter.className}>
+        <Providers>
+          <main className="min-h-screen bg-slate-50">
+            {children}
+          </main>
+        </Providers>
       </body>
     </html>
-  )
+  );
 }

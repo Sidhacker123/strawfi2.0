@@ -40,6 +40,8 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+.env 
+.env/
 
 # vercel
 .vercel
@@ -77,7 +79,3 @@ desktop.ini
 .temp/
 .tmp/
 
-# database files
-*.db
-/database/
-/database/exports/ 
