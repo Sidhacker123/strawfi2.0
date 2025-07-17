@@ -1,0 +1,7 @@
+node_modules/
+sec-edgar/
+.env
+*.pyc
+__pycache__/
+sql/
+create_research_table.sql/
