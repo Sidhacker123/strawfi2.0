@@ -12,3 +12,12 @@ scikit-learn
 fastapi
 pandas
 dotenv
+transformers
+textblob
+torch
+numpy
+scikit-learn
+pandas
+matplotlib
+seaborn
+plotly

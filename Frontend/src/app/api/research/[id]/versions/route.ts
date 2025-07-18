@@ -1,10 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+
+// Use environment variable instead of hardcoded localhost
+const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   const { id } = params;
   try {
-    // Hardcoding the backend URL for testing purposes
-    const backendUrl = "http://localhost:3001";
     const response = await fetch(`${backendUrl}/api/research/${id}/versions`);
     if (!response.ok) {
       throw new Error(`Backend responded with status ${response.status}`);

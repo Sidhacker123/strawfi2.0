@@ -6,41 +6,91 @@ const jwt      = require('jsonwebtoken');
 const personaRoutes  = require('./api/persona');
 const secParserRoutes = require('./api/parse_filing');
 const researchRoutes  = require('./api/research');
+const corporateRoutes = require('./api/corporate');
 const multer  = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 const { createServer } = require('http');
 const WebSocket = require('ws');
+
+// Environment validation
+const requiredEnvVars = {
+  JWT_SECRET: process.env.JWT_SECRET,
+  SUPABASE_URL: process.env.SUPABASE_URL,
+  SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY
+};
+
+const missingEnvVars = Object.entries(requiredEnvVars)
+  .filter(([key, value]) => !value)
+  .map(([key]) => key);
+
+if (missingEnvVars.length > 0) {
+  console.error('❌ Missing required environment variables:', missingEnvVars.join(', '));
+  console.error('Please set these environment variables in your deployment platform.');
+  process.exit(1);
+}
+
+console.log('✅ All required environment variables are set');
+console.log('🌍 Environment:', process.env.NODE_ENV || 'development');
+console.log('🔑 JWT Secret:', process.env.JWT_SECRET ? '✅ Set' : '❌ Missing');
 
 const app  = express();
 const server = createServer(app);
 const wss = new WebSocket.Server({ server });
 const PORT = process.env.PORT || 3001;
 
-// CORS configuration
-const allowedOrigins = [
-  'https://www.strawfi.com',
-  'https://fintech-multiverse.vercel.app',
-  'http://localhost:3000'
-];
-
+// ---------- CORS ----------
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    console.log(`🌐 CORS request from origin: ${origin}`);
+    
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = process.env.NODE_ENV === 'production'
+      ? [
+          process.env.FRONTEND_URL,
+          'https://strawfi-testing.vercel.app',
+          'https://strawfi-testing-01.vercel.app',
+          'https://fintech-multiverse.vercel.app'
+        ].filter(Boolean) // Remove undefined values
+      : ['http://localhost:3000', 'http://127.0.0.1:3000'];
+    
+    console.log(`🔍 Allowed origins:`, allowedOrigins);
+    
+    if (allowedOrigins.includes(origin)) {
+      console.log(`✅ Origin allowed: ${origin}`);
       callback(null, true);
-    } 
-    else {
-      console.error('Blocked by CORS:', origin);
+    } else {
+      console.log(`❌ CORS blocked origin: ${origin}`);
+      console.log('🔍 Allowed origins:', allowedOrigins);
       callback(new Error('Not allowed by CORS'));
     }
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  methods: ['GET', 'POST', 'DELETE', 'PUT', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: true,
-  maxAge: 86400 // 24 hours
+  optionsSuccessStatus: 200,
+  preflightContinue: false // Let cors handle the response
 };
 
 app.use(cors(corsOptions));
+
+// Add explicit OPTIONS handler for all routes to ensure preflight works
+app.options('*', (req, res) => {
+  console.log(`🔧 OPTIONS request for: ${req.path} from origin: ${req.get('Origin')}`);
+  console.log(`📝 Request headers: ${JSON.stringify(req.headers)}`);
+  res.sendStatus(200);
+});
+
 app.use(express.json());
+
+// Add request logging middleware
+app.use((req, res, next) => {
+  console.log(`📞 ${req.method} ${req.path} from ${req.get('Origin') || 'unknown'}`);
+  if (req.method === 'OPTIONS') {
+    console.log(`🔧 Preflight headers: ${JSON.stringify(req.headers)}`);
+  }
+  next();
+});
 
 const upload   = multer({ storage: multer.memoryStorage() });
 const supabase = createClient(
@@ -48,7 +98,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-/* ---------- JWT helper ---------- */
+//jwt helper
 const authenticateToken = (req, _res, next) => {
   const authHeader = req.headers['authorization'];
   const token      = authHeader && authHeader.split(' ')[1];
@@ -60,8 +110,7 @@ const authenticateToken = (req, _res, next) => {
   });
 };
 
-/* ---------- in-memory editing locks ---------- */
-//  Map<researchId, { userId, userName, startedAt }>
+
 const editingLocks = new Map();
 
 // acquire lock
@@ -79,7 +128,6 @@ app.post('/api/research/:id/lock', authenticateToken, (req, res) => {
   res.json({ editing: true, by: req.user.name });
 });
 
-// release lock
 app.delete('/api/research/:id/lock', authenticateToken, (req, res) => {
   const id      = req.params.id;
   const current = editingLocks.get(id);
@@ -92,6 +140,27 @@ app.get('/api/research/:id/lock', (req, res) => {
   const lock = editingLocks.get(req.params.id);
   if (!lock) return res.json({ editing: false });
   res.json({ editing: true, by: lock.userName });
+});
+
+// Health check endpoint (should be near the top, before other routes)
+app.get('/health', (req, res) => {
+  console.log('🏥 Health check requested from:', req.get('Origin') || 'unknown');
+  res.json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    cors_enabled: true
+  });
+});
+
+// Test CORS with a simple endpoint
+app.get('/api/cors-test', (req, res) => {
+  console.log('🧪 CORS test requested from:', req.get('Origin') || 'unknown');
+  res.json({ 
+    message: 'CORS test successful',
+    origin: req.get('Origin'),
+    timestamp: new Date().toISOString()
+  });
 });
 
 /* ---------- existing routes ---------- */
@@ -112,6 +181,51 @@ app.get ('/api/research/:id/versions', researchRoutes.getResearchVersions);
 
 // NEW: Create Version
 app.post('/api/research/:id/version', researchRoutes.createResearchVersion);
+
+/* ---------- Corporate Events API Routes ---------- */
+
+// Test endpoint
+app.get('/api/corporate/test', corporateRoutes.handleTest);
+
+// Enhanced sentiment analysis test
+app.get('/api/corporate/test-enhanced', (req, res) => {
+  res.json({
+    message: 'Enhanced sentiment analysis test endpoint',
+    instructions: 'Use POST /api/analyze with action=test_enhanced_features to test enhancements'
+  });
+});
+
+// Historical Analysis
+app.get('/api/historical', corporateRoutes.handleHistoricalAnalysis);
+
+// Audio Transcription
+app.post('/api/transcribe', corporateRoutes.upload.single('audio'), corporateRoutes.handleAudioTranscription);
+
+// Audio Debug
+app.post('/api/audio-debug', corporateRoutes.upload.single('audio'), corporateRoutes.handleAudioDebug);
+
+// Text Analysis
+app.post('/api/analyze', corporateRoutes.handleTextAnalysis);
+
+// Bulk Analysis
+app.post('/api/bulk', corporateRoutes.handleBulkAnalysis);
+
+// Manual cleanup endpoint (for testing)
+app.post('/api/corporate/cleanup', (req, res) => {
+  try {
+    corporateRoutes.cleanupTempFiles();
+    res.json({ 
+      success: true, 
+      message: 'Temp files cleanup completed',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Cleanup failed', 
+      details: error.message 
+    });
+  }
+});
 
 // File upload for PDFs
 app.post('/api/upload', upload.single('file'), async (req, res) => {
@@ -141,16 +255,43 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 
 // Endpoint to issue JWT for a user
 app.post('/api/get-jwt', async (req, res) => {
-  const { userId } = req.body;
-  if (!userId) return res.status(400).json({ error: 'Missing userId' });
-  // Optionally, verify userId with Supabase or your DB here
-  const token = jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '1h' });
-  res.json({ token });
-});
-
-// Health check
-app.get('/health', (_, res) => {
-  res.status(200).json({ status: 'ok', message: 'API is running' });
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'Missing userId' });
+    
+    console.log('JWT requested for user:', userId);
+    
+    // Verify userId exists in Supabase auth.users table
+    const { data: user, error } = await supabase.auth.admin.getUserById(userId);
+    
+    if (error) {
+      console.error('User verification error:', error);
+      return res.status(401).json({ error: 'Invalid user ID' });
+    }
+    
+    if (!user) {
+      console.error('User not found:', userId);
+      return res.status(401).json({ error: 'User not found' });
+    }
+    
+    console.log('User verified, issuing JWT for:', user.user.email);
+    
+    // Issue JWT with verified user info
+    const token = jwt.sign(
+      { 
+        id: userId, 
+        email: user.user.email,
+        iat: Math.floor(Date.now() / 1000)
+      }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '1h' }
+    );
+    
+    res.json({ token });
+  } catch (error) {
+    console.error('JWT generation error:', error);
+    res.status(500).json({ error: 'Failed to generate token' });
+  }
 });
 
 // Global error handler
@@ -170,9 +311,20 @@ app.use((err, _req, res, _next) => {
 const activeEditors = new Map();
 
 // WebSocket connection handling
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
   console.log('Client connected');
 
+  // Check if this is a corporate events WebSocket connection
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const isCorporateEvents = url.pathname === '/ws/corporate';
+
+  if (isCorporateEvents) {
+    // Handle corporate events live recording
+    corporateRoutes.handleLiveRecording(ws, req);
+    return;
+  }
+
+  // Handle existing research editing WebSocket
   ws.on('message', async (message) => {
     try {
       const data = JSON.parse(message);
@@ -258,31 +410,71 @@ function broadcastEditors() {
 const startServer = () => {
   try {
     server.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log(`API available at http://localhost:${PORT}`);
-      console.log('Available endpoints:');
-      console.log('  - POST /api/persona');
-      console.log('  - GET  /api/personas');
-      console.log('  - GET  /api/persona/:id');
-      console.log('  - POST /api/sec-filing');
-      console.log('  - POST /api/research/create');
-      console.log('  - GET  /api/research');
-      console.log('  - GET  /api/research/:id');
-      console.log('  - GET  /api/research/:id/versions');
-      console.log('  - POST /api/research/:id/version');
-      console.log('  - GET  /api/research/:id/lock');      // ← NEW
-      console.log('  - POST /api/research/:id/lock');     // ← NEW
-      console.log('  - DELETE /api/research/:id/lock');   // ← NEW
-      console.log('  - POST /api/upload');
-      console.log('  - GET  /health');
+      console.log('🚀 Server starting...');
+      console.log(`🌐 Server running on port ${PORT}`);
+      console.log(`📍 API available at http://localhost:${PORT}`);
+      console.log('🔧 Environment:', process.env.NODE_ENV || 'development');
+      
+      // CORS Configuration Info
+      console.log('\n🛡️  CORS Configuration:');
+      const allowedOrigins = process.env.NODE_ENV === 'production'
+        ? [
+            process.env.FRONTEND_URL,
+            'https://strawfi-testing-01.vercel.app',
+            'https://fintech-multiverse.vercel.app'
+          ].filter(Boolean)
+        : ['http://localhost:3000', 'http://127.0.0.1:3000'];
+      console.log('   Allowed Origins:', allowedOrigins);
+      console.log('   Allowed Methods: GET, POST, DELETE, PUT, OPTIONS');
+      console.log('   Allowed Headers: Content-Type, Authorization, X-Requested-With');
+      
+      console.log('\n📋 Available endpoints:');
+      console.log('  🏥 GET  /health                      (Health check)');
+      console.log('  🧪 GET  /api/cors-test               (CORS test)');
+      console.log('  👤 POST /api/persona');
+      console.log('  👥 GET  /api/personas');
+      console.log('  👤 GET  /api/persona/:id');
+      console.log('  📄 POST /api/sec-filing');
+      console.log('  📝 POST /api/research/create');
+      console.log('  📚 GET  /api/research');
+      console.log('  📖 GET  /api/research/:id');
+      console.log('  📋 GET  /api/research/:id/versions');
+      console.log('  ➕ POST /api/research/:id/version');
+      console.log('  🔒 GET  /api/research/:id/lock');
+      console.log('  🔒 POST /api/research/:id/lock');
+      console.log('  🔓 DELETE /api/research/:id/lock');
+      console.log('  📤 POST /api/upload');
+      console.log('  🧪 GET  /api/corporate/test          (Corporate Events Test)');
+      console.log('  📊 GET  /api/historical              (Corporate Events - No Auth)');
+      console.log('  🎤 POST /api/transcribe              (Corporate Events - No Auth)');
+      console.log('  📈 POST /api/analyze                 (Corporate Events - No Auth)');
+      console.log('  📊 POST /api/bulk                    (Corporate Events - No Auth)');
+      console.log('  🗑️  POST /api/corporate/cleanup      (Manual cleanup)');
+      console.log('  🔑 POST /api/get-jwt                 (JWT generation)');
+      
+      console.log('\n🔌 WebSocket endpoints:');
+      console.log('  📡 /ws/corporate (for live recording)');
+      console.log('  📝 /ws (for research editing)');
+      
+      // Initial cleanup of old temp files
+      console.log('\n🧹 Performing initial temp file cleanup...');
+      corporateRoutes.cleanupTempFiles();
+      
+      // Set up periodic cleanup every 6 hours
+      setInterval(() => {
+        console.log('🧹 Performing periodic temp file cleanup...');
+        corporateRoutes.cleanupTempFiles();
+      }, 6 * 60 * 60 * 1000); // 6 hours
+      
+      console.log('\n✅ Server ready to handle requests!');
     });
   } catch (error) {
     if (error.code === 'EADDRINUSE') {
-      console.error(`Port ${PORT} is already in use.`);
-      console.error('Kill the process using the port or set PORT env to a different value.');
+      console.error(`❌ Port ${PORT} is already in use.`);
+      console.error('💡 Kill the process using the port or set PORT env to a different value.');
       process.exit(1);
     } else {
-      console.error('Failed to start server:', error);
+      console.error('❌ Failed to start server:', error);
       process.exit(1);
     }
   }

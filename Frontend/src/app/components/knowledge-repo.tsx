@@ -871,7 +871,8 @@ const KnowledgeRepository: React.FC<KnowledgeRepositoryProps> = ({ user }) => {
           // Refresh the research items
           const fetchResearchItems = async () => {
             try {
-              const response = await fetch('http://localhost:3001/api/research');
+              const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+              const response = await fetch(`${apiUrl}/api/research`);
               if (!response.ok) {
                 throw new Error('Failed to fetch research items');
               }

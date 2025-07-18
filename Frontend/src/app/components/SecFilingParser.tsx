@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { FaSpinner } from "react-icons/fa";
 import React from "react";
+import { useAuth } from '@/contexts/AuthContext';
+import { apiService } from '@/lib/services/apiService';
 
 interface Section {
   text: string;
@@ -39,6 +41,7 @@ interface ParsedResult {
 }
 
 export default function SecFilingParser() {
+  const { jwt } = useAuth();
   const [ticker, setTicker] = useState("");
   const [formType, setFormType] = useState("10-K");
   const [year, setYear] = useState(new Date().getFullYear().toString());
@@ -56,19 +59,12 @@ export default function SecFilingParser() {
     setResult(null);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-      const res = await fetch(`${apiUrl}/api/sec-filing`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticker, formType, year })
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || data.error || "Failed to fetch filing");
-      }
+      console.log('Parsing SEC filing with authentication...');
+      const data = await apiService.parseSecFiling({
+        ticker,
+        formType,
+        year
+      }, jwt);
 
       if (!data.success) {
         throw new Error(data.message || "Failed to parse filing");

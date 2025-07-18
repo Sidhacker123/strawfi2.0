@@ -57,12 +57,13 @@ export default function Header({
   backUrl = "/", 
   backText = "Back" 
 }: HeaderProps) {
+  const { user, signOut, loading } = useAuth();
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showDemoModal, setShowDemoModal] = useState(false);
+  const [logoLoaded, setLogoLoaded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [demoForm, setDemoForm] = useState<DemoFormData>(initialDemoForm);
-  const { user, signOut } = useAuth(); // Remove userProfile as it's not in the context
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   const tryMailto = () => {
     window.location.href = 'mailto:siddpurdue@gmail.com';
@@ -121,13 +122,22 @@ export default function Header({
               
               {/* Logo and Financial Insights - Top Left */}
               <div className="flex items-center space-x-3">
-                <Image
-                  src="/assets/logo.png"
-                  alt="Financial Insights Logo"
-                  width={32}
-                  height={32}
-                  className="transition-opacity duration-500"
-                />
+                <div className="relative">
+                  <Image
+                    src="/assets/logo.png"
+                    alt="Financial Insights Logo"
+                    width={32}
+                    height={32}
+                    className={`transition-opacity duration-300 ${logoLoaded ? 'opacity-100' : 'opacity-0'}`}
+                    onLoad={() => setLogoLoaded(true)}
+                    onError={() => setLogoLoaded(true)}
+                  />
+                  {!logoLoaded && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                    </div>
+                  )}
+                </div>
                 <Link 
                   href="/financial-insights"
                   className="text-lg font-semibold text-white hover:text-gray-300 transition-colors"
@@ -138,7 +148,7 @@ export default function Header({
             </div>
             
             {/* Right side - moved to extreme right */}
-            <div className="flex items-center space-x-6 ml-auto">
+            <div className="flex items-center space-x-6">
               <button
                 onClick={() => setShowHelpModal(true)}
                 className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
@@ -155,7 +165,13 @@ export default function Header({
                 <span className="text-lg font-semibold text-white hover:text-gray-300 transition-colors">Request a demo</span>
               </button>
 
-              {user ? (
+              {/* Authentication section with loading state */}
+              {loading ? (
+                <div className="flex items-center space-x-2">
+                  <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                  <span className="text-gray-400">Loading...</span>
+                </div>
+              ) : user ? (
                 <div className="relative">
                   <button
                     onClick={() => setIsProfileOpen(!isProfileOpen)}

@@ -24,6 +24,8 @@ import AddVersionModal from '../components/research/AddVersionModel';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { apiService } from '@/lib/services/apiService';
+import { config } from '@/lib/config';
 
 /* ---------- types ---------- */
 
@@ -263,10 +265,12 @@ export default function ResearchMemory() {
 
   // WebSocket connection
   const connectWebSocket = useCallback(() => {
-    const socket = new WebSocket(process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001');
+    const wsUrl = config.websocket.url;
+    console.log('🔌 Connecting to WebSocket:', wsUrl);
+    const socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
-      console.log('WebSocket connected');
+      console.log('✅ WebSocket connected successfully');
     };
 
     socket.onmessage = (event) => {
@@ -284,9 +288,17 @@ export default function ResearchMemory() {
       }
     };
 
-    socket.onclose = () => {
-      console.log('WebSocket disconnected');
-      setTimeout(connectWebSocket, 5000);
+    socket.onerror = (error) => {
+      console.error('❌ WebSocket error:', error);
+    };
+
+    socket.onclose = (event) => {
+      console.log('🔌 WebSocket disconnected', { code: event.code, reason: event.reason });
+      // Only reconnect if it wasn't a clean closure and user is still on the page
+      if (event.code !== 1000 && document.visibilityState === 'visible') {
+        console.log('🔄 Attempting to reconnect in 5 seconds...');
+        setTimeout(connectWebSocket, 5000);
+      }
     };
 
     setWs(socket);
@@ -344,26 +356,31 @@ export default function ResearchMemory() {
     setAddVerModal(p => ({ ...p, open: false }));
   };
 
-  // Update lock/unlock requests to send JWT
+  // Update lock/unlock requests to use API service
   const acquireLock = async (researchId: string) => {
-    if (!jwt) return;
-    await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/research/${researchId}/lock`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${jwt}`,
-      },
-    });
+    if (!jwt) {
+      console.warn('No JWT available for lock request');
+      return;
+    }
+    
+    try {
+      await apiService.acquireLock(researchId, jwt);
+    } catch (error) {
+      console.error('Failed to acquire lock:', error);
+    }
   };
+
   const releaseLock = async (researchId: string) => {
-    if (!jwt) return;
-    await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/research/${researchId}/lock`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${jwt}`,
-      },
-    });
+    if (!jwt) {
+      console.warn('No JWT available for unlock request');
+      return;
+    }
+    
+    try {
+      await apiService.releaseLock(researchId, jwt);
+    } catch (error) {
+      console.error('Failed to release lock:', error);
+    }
   };
 
   if (isLoading) {

@@ -23,6 +23,7 @@ import RichTextEditor from '../../../components/research/RichTextEditor';
 import WritingAssistant from '../../../components/research/WritingAssistant';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { apiService } from '@/lib/services/apiService';
 
 interface ResearchVersion {
   id: string;
@@ -51,7 +52,7 @@ interface Research {
 
 // Create Research Modal Component
 const CreateResearchModal = ({ isOpen, onClose, onSuccess }) => {
-  const { user } = useAuth();
+  const { user, jwt } = useAuth();
   const [formData, setFormData] = useState({
     title: '',
     type: '',
@@ -77,15 +78,20 @@ const CreateResearchModal = ({ isOpen, onClose, onSuccess }) => {
   };
 
   const uploadFile = async (file) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    const response = await fetch('http://localhost:3001/api/upload', {
-      method: 'POST',
-      body: formData,
-    });
-    if (!response.ok) throw new Error('File upload failed');
-    const data = await response.json();
-    return data.url;
+    if (file) {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${apiUrl}/api/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!response.ok) throw new Error('File upload failed');
+      const data = await response.json();
+      return data.url;
+    }
+    return null;
   };
 
   const handleSubmit = async () => {
@@ -97,19 +103,30 @@ const CreateResearchModal = ({ isOpen, onClose, onSuccess }) => {
       setFileError('Please upload a PDF file.');
       return;
     }
+
+    // Check if user is authenticated and has JWT
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      alert('Please login to create research');
+      return;
+    }
+
+    // Get JWT from context
+    const currentJwt = jwt;
+    if (!currentJwt) {
+      alert('Authentication token not available. Please refresh and try again.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       let fileUrl = '';
       if (formData.file) {
-        fileUrl = await uploadFile(formData.file);
+        console.log('Uploading file with JWT authentication...');
+        fileUrl = await apiService.uploadFile(formData.file, currentJwt);
       }
 
       // Get the current user's profile
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('No active session');
-      }
-
       const { data: profile } = await supabase
         .from('profiles')
         .select('full_name')
@@ -118,35 +135,25 @@ const CreateResearchModal = ({ isOpen, onClose, onSuccess }) => {
 
       const authorName = profile?.full_name || session.user.email?.split('@')[0] || 'Unknown';
 
-        // Create research using the backend API
-      const response = await fetch('http://localhost:3001/api/research/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: formData.title,
-          type: formData.type,
-          content: formData.content,
-          tags: formData.tags,
-          fileUrl: fileUrl,
-          username: authorName,
-          relevance_score: 0
-        }),
-      });
+      console.log('Creating research with authenticated API call...');
+      const result = await apiService.createResearch({
+        title: formData.title,
+        type: formData.type,
+        content: formData.content,
+        tags: formData.tags,
+        fileUrl: fileUrl,
+        username: authorName,
+        relevance_score: 0
+      }, currentJwt);
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to create research');
-      }
-
-      const result = await response.json();
       if (!result.success) {
         throw new Error(result.message || 'Failed to create research');
       }
 
+      console.log('Research created successfully:', result);
       onSuccess();
     } catch (error: any) {
+      console.error('Research creation failed:', error);
       alert(`Failed to create research: ${error.message}`);
     } finally {
       setIsSubmitting(false);
