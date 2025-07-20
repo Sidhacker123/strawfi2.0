@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { FaRobot, FaChartLine, FaBrain, FaArrowRight } from "react-icons/fa";
 import { AnimatedSection } from "./components/AnimatedSection";
 import Header from "./components/Header";
@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export default function Home() {
   const { user } = useAuth();
+  const [videoLoaded, setVideoLoaded] = useState(false);
 
   return (
     <main className="min-h-screen bg-black text-white">
@@ -23,16 +24,22 @@ export default function Home() {
           {/* Video Logo */}
           <div className="flex justify-center mb-6">
             <video
-              src="/assets/logo.mp4"
               width={250}
               height={250}
               autoPlay
               muted
+              loop={false}
               playsInline
-              className="transition-opacity duration-500"
+              className={`transition-opacity duration-500 ${videoLoaded ? 'opacity-100' : 'opacity-0'}`}
               style={{ border: 'none', outline: 'none' }}
-            />
+              onLoadedData={() => setVideoLoaded(true)}
+              onError={() => setVideoLoaded(true)}
+            >
+              <source src="/assets/logo.mp4" type="video/mp4" />
+              Your browser does not support the video tag.
+            </video>
           </div>
+         
           
           <p className="text-xl md:text-2xl text-gray-300 mb-12 max-w-2xl mx-auto">
             Your gateway to personalized financial insights and AI-powered analysis

@@ -70,7 +70,12 @@ const createResearch = async (req, res) => {
         type,
         tags
       })
-    ]);
+    ], {
+      env: { 
+        ...process.env, 
+        HUGGINGFACE_TOKEN: process.env.HUGGINGFACE_TOKEN 
+      }
+    });
 
     pythonProcess.stdout.on('data', (d) =>
       console.log('Python script output:', d.toString())

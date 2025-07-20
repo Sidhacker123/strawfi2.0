@@ -42,11 +42,12 @@ export default function AddVersionModal({
   const { user } = useAuth();
 
   React.useEffect(() => {
-    if (isOpen && researchId) {
-      // Fetch first version's content when modal opens
-      fetch(`http://localhost:3001/api/research/${researchId}/versions`)
-        .then(r => r.json())
-        .then(data => {
+    const loadVersions = async () => {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+        const res = await fetch(`${apiUrl}/api/research/${researchId}/versions`);
+        if (res.ok) {
+          const data = await res.json();
           if (data.versions && data.versions.length > 0) {
             setFormData(prev => ({
               ...prev,
@@ -54,8 +55,14 @@ export default function AddVersionModal({
               tags: data.versions[0].tags || []
             }));
           }
-        })
-        .catch(console.error);
+        }
+      } catch (error) {
+        console.error('Error fetching versions:', error);
+      }
+    };
+
+    if (isOpen && researchId) {
+      loadVersions();
     }
   }, [isOpen, researchId]);
   const [tagInput, setTagInput] = useState('');
@@ -68,7 +75,9 @@ export default function AddVersionModal({
   const uploadFile = async (file: File) => {
     const fd = new FormData();
     fd.append('file', file);
-    const r = await fetch('http://localhost:3001/api/upload', { method: 'POST', body: fd });
+    
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const r = await fetch(`${apiUrl}/api/upload`, { method: 'POST', body: fd });
     if (!r.ok) throw new Error('File upload failed');
     const j = await r.json();
     return j.url as string;

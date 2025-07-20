@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Mail, Lock, AlertCircle } from 'lucide-react';
 
 function LoginForm() {
-  const { signIn, user } = useAuth();
+  const { signIn, user, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirectTo') || '/';
@@ -14,27 +14,50 @@ function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
+
+  // Debug current state
+  console.log('🔍 Login page state:', { 
+    hasUser: !!user, 
+    userEmail: user?.email,
+    authLoading: loading, 
+    formLoading, 
+    redirectTo 
+  });
 
   // Redirect if already logged in
   useEffect(() => {
-    if (user) {
-      router.push(redirectTo);
+    console.log('🔄 Login redirect check:', { 
+      hasUser: !!user, 
+      authLoading: loading, 
+      formLoading,
+      redirectTo 
+    });
+    
+    if (user && !loading && !formLoading) {
+      console.log('✅ User authenticated, redirecting to:', redirectTo);
+      // Small delay to ensure auth state is fully settled
+      setTimeout(() => {
+        router.push(redirectTo);
+      }, 100);
     }
-  }, [user, redirectTo, router]);
+  }, [user, loading, formLoading, redirectTo, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
+    setFormLoading(true);
 
     try {
+      console.log('Starting sign in process...');
       await signIn(email, password);
+      console.log('Sign in completed, waiting for user state update...');
       // The redirect will be handled by the useEffect above
     } catch (err: any) {
+      console.error('Sign in error:', err);
       setError(err.message);
     } finally {
-      setLoading(false);
+      setFormLoading(false);
     }
   };
 
@@ -100,10 +123,10 @@ function LoginForm() {
           {/* Submit */}
           <button
             type="submit"
-            disabled={loading}
+            disabled={formLoading}
             className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Signing in...' : 'Sign in'}
+            {formLoading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
 

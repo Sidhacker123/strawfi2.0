@@ -4,7 +4,8 @@ import { useState } from "react";
 import { FaRobot, FaChartLine, FaShieldAlt, FaFileAlt, FaArrowLeft, FaRegBuilding, FaRegNewspaper, FaRegFileAlt as FaRegFile, FaRegUser, FaLeaf, FaGavel } from "react-icons/fa";
 import Link from "next/link";
 import SecFilingParser from "../components/SecFilingParser";
-import DeltaDetectionUI from "../components/deltadetector"; // Add this import
+import DeltaDetectionUI from "../components/deltadetector"; 
+import CorporateEvents from "../components/CorporateEvents";
 import Header from "../components/Header";
 
 type Tool = {
@@ -25,7 +26,7 @@ export default function ToolsPage() {
       name: "Delta Detector",
       description: "Detect and analyze significant changes in financial data, portfolio metrics, or user behavior",
       icon: FaChartLine,
-      component: DeltaDetectionUI, // Add the component here
+      component: DeltaDetectionUI, 
       available: true,
     },
     {
@@ -55,7 +56,8 @@ export default function ToolsPage() {
       name: "Corporate Events",
       description: "Monitor earnings calls, mergers, acquisitions, and other corporate events",
       icon: FaRegBuilding,
-      available: false,
+      component: CorporateEvents,
+      available: true,
     },
     {
       id: "insider-transactions",
