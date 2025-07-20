@@ -49,7 +49,7 @@ Please provide a structured analysis in the following JSON format:
   ]
 }
 
-In your insights, mention the most important financial numbers as part of the explanation, not just in a separate field. The 'sources' array can include either URLs or short source names. Return only the JSON object, no additional text.`;
+In your insights, mention the most important financial numbers as part of the explanation, not just in a separate field. The 'sources' array can include either URLs or short source names and you must provide some sources. Return only the JSON object, no additional text.`;
   };
 
   const callOpenAI = async (prompt) => {
