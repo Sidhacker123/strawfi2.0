@@ -48,6 +48,7 @@ const corsOptions = {
     const allowedOrigins = process.env.NODE_ENV === 'production'
       ? [
           process.env.FRONTEND_URL,
+          'https://www.strawfi.com',
           'https://strawfi-testing.vercel.app',
           'https://strawfi-testing-01.vercel.app',
           'https://fintech-multiverse.vercel.app'
