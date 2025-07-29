@@ -11,6 +11,7 @@ const supabase = createClient(
 const createResearch = async (req, res) => {
   try {
     console.log('Received research creation request:', req.body);
+    console.log('Team ID from JWT:', req.team_id);
 
     const {
       title,
@@ -22,32 +23,37 @@ const createResearch = async (req, res) => {
       created_at,
       relevance_score
     } = req.body;
+    const team_id = req.team_id;
 
-    if (!title || !type || !content || !username) {
+    if (!title || !type || !content || !username || !team_id) {
+      console.log('Missing required fields detected');
       return res.status(400).json({
         success: false,
         message:
-          'Missing required fields: title, type, content, and username are required'
+          'Missing required fields: title, type, content, username, and team_id are required'
       });
     }
 
+    const insertData = {
+      title,
+      type,
+      content,
+      tags: tags || [],
+      file_url: fileUrl || null,
+      author: username,
+      created_at: created_at || new Date().toISOString(),
+      relevance_score: relevance_score || 0,
+      status: 'published',
+      analysis_status: 'pending',
+      team_id
+    };
+
+    console.log('Inserting research with team_id:', team_id);
+
     const { data, error } = await supabase
       .from('research')
-      .insert([
-        {
-          title,
-          type,
-          content,
-          tags: tags || [],
-          file_url: fileUrl,
-          author: username,
-          created_at: created_at || new Date().toISOString(),
-          relevance_score: relevance_score || 0,
-          status: 'published',
-          analysis_status: 'pending'
-        }
-      ])
-      .select() // return the newly-inserted row[5]
+      .insert([insertData])
+      .select()
       .single();
 
     if (error) {
@@ -176,9 +182,11 @@ const createResearchVersion = async (req, res) => {
 const getAllResearch = async (req, res) => {
   try {
     console.log('Fetching all research items...');
+    const team_id = req.team_id;
     const { data, error } = await supabase
       .from('research')
       .select('*')
+      .eq('team_id', team_id)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -244,12 +252,13 @@ const getResearchById = async (req, res) => {
 const getResearchVersions = async (req, res) => {
   try {
     const { id: research_id } = req.params;
-
+    const team_id = req.team_id;
     // First get the original research item
     const { data: originalResearch, error: researchErr } = await supabase
       .from('research')
       .select('*')
       .eq('id', research_id)
+      .eq('team_id', team_id)
       .single();
 
     if (researchErr) throw researchErr;

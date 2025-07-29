@@ -11,6 +11,7 @@ const multer  = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 const { createServer } = require('http');
 const WebSocket = require('ws');
+const bcrypt = require('bcrypt'); // Add at the top if not present
 
 // Environment validation
 const requiredEnvVars = {
@@ -94,10 +95,52 @@ app.use((req, res, next) => {
 });
 
 const upload   = multer({ storage: multer.memoryStorage() });
+
+// Initialize Supabase client with cache clearing
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_SERVICE_KEY,
+  {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: false
+    },
+    db: {
+      schema: 'public'
+    }
+  }
 );
+
+// Force refresh the connection
+console.log('🔄 Initializing Supabase connection...');
+
+// Verify teams table schema on startup
+async function verifyTeamsSchema() {
+  try {
+    console.log('🔍 Verifying teams table schema...');
+    
+    // Test basic access to teams table
+    const { data, error } = await supabase
+      .from('teams')
+      .select('id, team_id, team_name, password_hash, created_at')
+      .limit(1);
+    
+    if (error) {
+      console.error('❌ Teams table schema error:', error.message);
+      console.error('💡 This might be a schema cache issue. Try restarting the server.');
+      return false;
+    }
+    
+    console.log('✅ Teams table schema verified successfully');
+    return true;
+  } catch (err) {
+    console.error('❌ Schema verification failed:', err.message);
+    return false;
+  }
+}
+
+// Run schema verification
+verifyTeamsSchema();
 
 //jwt helper
 const authenticateToken = (req, _res, next) => {
@@ -174,14 +217,8 @@ app.get ('/api/persona/:id',  personaRoutes.getPersonaById);
 // SEC Parser
 app.post('/api/sec-filing', secParserRoutes.parseFiling);
 
-// Research (base)
-app.post('/api/research/create',  researchRoutes.createResearch);
-app.get ('/api/research',         researchRoutes.getAllResearch);
-app.get ('/api/research/:id',     researchRoutes.getResearchById);
-app.get ('/api/research/:id/versions', researchRoutes.getResearchVersions);
-
-// NEW: Create Version
-app.post('/api/research/:id/version', researchRoutes.createResearchVersion);
+// Research routes are now handled with team authentication below
+// (removed old routes without authentication)
 
 /* ---------- Corporate Events API Routes ---------- */
 
@@ -294,6 +331,137 @@ app.post('/api/get-jwt', async (req, res) => {
     res.status(500).json({ error: 'Failed to generate token' });
   }
 });
+
+// Team login endpoint
+app.post('/api/team-login', async (req, res) => {
+  const { team_id, password } = req.body;
+  if (!team_id || !password) return res.status(400).json({ error: 'Missing team_id or password' });
+
+  try {
+    // Fetch team by team_id
+    const { data: teams, error } = await supabase
+      .from('teams')
+      .select('*')
+      .eq('team_id', team_id);
+
+    if (error) {
+      console.error('Team login error:', error);
+      if (error.message.includes('schema cache')) {
+        return res.status(500).json({ 
+          error: 'Database schema cache issue. Please try again or contact support.' 
+        });
+      }
+      return res.status(401).json({ error: 'Invalid team credentials' });
+    }
+
+    // Check if team exists
+    if (!teams || teams.length === 0) {
+      return res.status(401).json({ error: 'Invalid team credentials' });
+    }
+
+    const team = teams[0]; // Get the first (and should be only) team
+
+    // Compare password
+    const valid = await bcrypt.compare(password, team.password_hash);
+    if (!valid) return res.status(401).json({ error: 'Invalid team credentials' });
+
+    // Issue JWT
+    const token = jwt.sign(
+      { team_id: team.id, team_name: team.team_name },
+      process.env.JWT_SECRET,
+      { expiresIn: '8h' }
+    );
+    res.json({ token, team_id: team.id, team_name: team.team_name });
+  } catch (err) {
+    console.error('Team login unexpected error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Endpoint to check if any teams exist
+app.get('/api/teams-exist', async (req, res) => {
+  const { data, error } = await supabase.from('teams').select('id').limit(1);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ exists: data && data.length > 0 });
+});
+
+// Endpoint to create a new team
+app.post('/api/team-create', async (req, res) => {
+  const { team_id, team_name, password } = req.body;
+  if (!team_id || !password) return res.status(400).json({ error: 'Missing team_id or password' });
+
+  try {
+    // Check if team_id already exists
+    const { data: existing, error: existingError } = await supabase
+      .from('teams')
+      .select('id')
+      .eq('team_id', team_id);
+
+    if (existingError) {
+      console.error('Team create check error:', existingError);
+      if (existingError.message.includes('schema cache')) {
+        return res.status(500).json({ 
+          error: 'Database schema cache issue. Please try again or contact support.' 
+        });
+      }
+      return res.status(500).json({ error: existingError.message });
+    }
+
+    // If existing data is found, team_id already exists
+    if (existing && existing.length > 0) {
+      return res.status(409).json({ error: 'Team ID already exists' });
+    }
+
+    // Hash password
+    const password_hash = await bcrypt.hash(password, 10);
+
+    // Insert new team
+    const { data, error } = await supabase
+      .from('teams')
+      .insert([{ team_id, team_name, password_hash }])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Team create insert error:', error);
+      if (error.message.includes('schema cache')) {
+        return res.status(500).json({ 
+          error: 'Database schema cache issue. Please try again or contact support.' 
+        });
+      }
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.status(201).json({ success: true, team_id: data.id, team_name: data.team_name });
+  } catch (err) {
+    console.error('Team create unexpected error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Middleware for team JWT auth
+function authenticateTeamToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.sendStatus(401);
+  
+  jwt.verify(token, process.env.JWT_SECRET, (err, payload) => {
+    if (err) {
+      console.error('❌ JWT verification failed:', err.message);
+      return res.sendStatus(403);
+    }
+    
+    req.team_id = payload.team_id;
+    next();
+  });
+}
+
+// Use authenticateTeamToken for all research endpoints
+app.post('/api/research/create', authenticateTeamToken, researchRoutes.createResearch);
+app.get ('/api/research', authenticateTeamToken, researchRoutes.getAllResearch);
+app.get ('/api/research/:id', authenticateTeamToken, researchRoutes.getResearchById);
+app.get ('/api/research/:id/versions', authenticateTeamToken, researchRoutes.getResearchVersions);
+app.post('/api/research/:id/version', authenticateTeamToken, researchRoutes.createResearchVersion);
 
 // Global error handler
 app.use((err, _req, res, _next) => {
@@ -452,6 +620,9 @@ const startServer = () => {
       console.log('  📊 POST /api/bulk                    (Corporate Events - No Auth)');
       console.log('  🗑️  POST /api/corporate/cleanup      (Manual cleanup)');
       console.log('  🔑 POST /api/get-jwt                 (JWT generation)');
+      console.log('  👤 POST /api/team-login              (Team login)');
+      console.log('  👤 GET  /api/teams-exist              (Check if teams exist)');
+      console.log('  👤 POST /api/team-create              (Create new team)');
       
       console.log('\n🔌 WebSocket endpoints:');
       console.log('  📡 /ws/corporate (for live recording)');

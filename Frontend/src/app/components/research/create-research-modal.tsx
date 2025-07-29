@@ -52,46 +52,51 @@ interface Research {
 
 // Create Research Modal Component
 const CreateResearchModal = ({ isOpen, onClose, onSuccess }) => {
-  const { user, jwt } = useAuth();
+  const { user } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     type: '',
     content: '',
     tags: [],
-    file: null,
-    fileUrl: ''
+    file: null
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [fileError, setFileError] = useState('');
   const [selectedText, setSelectedText] = useState('');
 
+  // Get team JWT for authentication
+  const currentJwt = localStorage.getItem('team_jwt');
+
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    if (file && file.type !== 'application/pdf') {
-      setFileError('Only PDF files are allowed.');
-      setFormData(prev => ({ ...prev, file: null }));
-    } else {
-      setFileError('');
+    if (file && file.type === 'application/pdf') {
       setFormData(prev => ({ ...prev, file }));
+      setFileError('');
+    } else {
+      setFileError('Please select a valid PDF file');
+      setFormData(prev => ({ ...prev, file: null }));
     }
   };
 
   const uploadFile = async (file) => {
-    if (file) {
-      const formData = new FormData();
-      formData.append('file', file);
+    const formData = new FormData();
+    formData.append('file', file);
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-      const response = await fetch(`${apiUrl}/api/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-      if (!response.ok) throw new Error('File upload failed');
-      const data = await response.json();
-      return data.url;
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/upload`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'Authorization': `Bearer ${currentJwt}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to upload file');
     }
-    return null;
+
+    const result = await response.json();
+    return result.url;
   };
 
   const handleSubmit = async () => {
@@ -99,22 +104,9 @@ const CreateResearchModal = ({ isOpen, onClose, onSuccess }) => {
       alert('Please fill in all required fields');
       return;
     }
-    if (!formData.file) {
-      setFileError('Please upload a PDF file.');
-      return;
-    }
 
-    // Check if user is authenticated and has JWT
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      alert('Please login to create research');
-      return;
-    }
-
-    // Get JWT from context
-    const currentJwt = jwt;
     if (!currentJwt) {
-      alert('Authentication token not available. Please refresh and try again.');
+      alert('Please log in to your team first');
       return;
     }
 
@@ -122,11 +114,16 @@ const CreateResearchModal = ({ isOpen, onClose, onSuccess }) => {
     try {
       let fileUrl = '';
       if (formData.file) {
-        console.log('Uploading file with JWT authentication...');
-        fileUrl = await apiService.uploadFile(formData.file, currentJwt);
+        console.log('Uploading file with team JWT authentication...');
+        fileUrl = await uploadFile(formData.file);
       }
 
-      // Get the current user's profile
+      // Get the current user's profile for consistent author naming
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session');
+      }
+
       const { data: profile } = await supabase
         .from('profiles')
         .select('full_name')
@@ -135,7 +132,7 @@ const CreateResearchModal = ({ isOpen, onClose, onSuccess }) => {
 
       const authorName = profile?.full_name || session.user.email?.split('@')[0] || 'Unknown';
 
-      console.log('Creating research with authenticated API call...');
+      console.log('Creating research with team JWT...');
       const result = await apiService.createResearch({
         title: formData.title,
         type: formData.type,
@@ -151,6 +148,18 @@ const CreateResearchModal = ({ isOpen, onClose, onSuccess }) => {
       }
 
       console.log('Research created successfully:', result);
+      
+      // Reset form
+      setFormData({
+        title: '',
+        type: '',
+        content: '',
+        tags: [],
+        file: null
+      });
+      setTagInput('');
+      setFileError('');
+      
       onSuccess();
     } catch (error: any) {
       console.error('Research creation failed:', error);

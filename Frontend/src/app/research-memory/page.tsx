@@ -25,6 +25,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { apiService } from '@/lib/services/apiService';
+import { teamService } from '@/lib/services/teamService';
 import { config } from '@/lib/config';
 
 /* ---------- types ---------- */
@@ -77,6 +78,164 @@ function stripHtmlRegex(html: string) {
   return html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').trim();
 }
 
+// Add team login form
+function TeamLogin({ onLogin, onCreateTeam }: { onLogin: () => void; onCreateTeam: () => void }) {
+  const [teamId, setTeamId] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const data = await teamService.login({ team_id: teamId, password });
+      localStorage.setItem('team_jwt', data.token);
+      localStorage.setItem('team_id', data.team_id);
+      localStorage.setItem('team_name', data.team_name);
+      onLogin();
+    } catch (err: any) {
+      setError(err.message || 'Login failed. Please check your connection.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-black text-white">
+      <div className="bg-gray-900 p-8 rounded-lg shadow-lg w-full max-w-md">
+        <h2 className="text-2xl font-bold mb-6 text-center">Team Login</h2>
+        <form onSubmit={handleLogin}>
+          <input
+            className="w-full mb-4 p-3 rounded bg-gray-800 text-white border border-gray-700 focus:border-blue-500 focus:outline-none"
+            placeholder="Team ID"
+            value={teamId}
+            onChange={e => setTeamId(e.target.value)}
+            required
+          />
+          <input
+            className="w-full mb-4 p-3 rounded bg-gray-800 text-white border border-gray-700 focus:border-blue-500 focus:outline-none"
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            required
+          />
+          {error && <div className="text-red-400 mb-4 text-sm">{error}</div>}
+          <button
+            type="submit"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded transition-colors"
+            disabled={loading}
+          >
+            {loading ? 'Logging in...' : 'Login'}
+          </button>
+        </form>
+        <div className="mt-4 text-center">
+          <button
+            onClick={onCreateTeam}
+            className="text-blue-400 hover:text-blue-300 underline text-sm"
+          >
+            Create a new team
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Add CreateTeam form
+function CreateTeam({ onCreated, onBackToLogin }: { onCreated: () => void; onBackToLogin: () => void }) {
+  const [teamId, setTeamId] = useState('');
+  const [teamName, setTeamName] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await teamService.createTeam({ team_id: teamId, team_name: teamName, password });
+      onCreated();
+    } catch (err: any) {
+      setError(err.message || 'Failed to create team. Please check your connection.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-black text-white">
+      <div className="bg-gray-900 p-8 rounded-lg shadow-lg w-full max-w-md">
+        <h2 className="text-2xl font-bold mb-6 text-center">Create Team</h2>
+        <form onSubmit={handleCreate}>
+
+          <input 
+            className="w-full mb-4 p-3 rounded bg-gray-800 text-white border border-gray-700 focus:border-blue-500 focus:outline-none"
+            placeholder="Team Name (to be displayed)"
+            value={teamName} 
+            onChange={e => setTeamName(e.target.value)} 
+            required 
+          />
+          <input 
+            className="w-full mb-4 p-3 rounded bg-gray-800 text-white border border-gray-700 focus:border-blue-500 focus:outline-none"
+            placeholder="Team ID (unique to team)"
+            value={teamId} 
+            onChange={e => setTeamId(e.target.value)} 
+            required 
+          />
+          <input 
+            className="w-full mb-4 p-3 rounded bg-gray-800 text-white border border-gray-700 focus:border-blue-500 focus:outline-none"
+            type="password" 
+            placeholder="Password (min 6 characters)"
+            value={password} 
+            onChange={e => setPassword(e.target.value)} 
+            required 
+          />
+          <input 
+            className="w-full mb-4 p-3 rounded bg-gray-800 text-white border border-gray-700 focus:border-blue-500 focus:outline-none"
+            type="password" 
+            placeholder="Confirm Password"
+            value={confirmPassword} 
+            onChange={e => setConfirmPassword(e.target.value)} 
+            required 
+          />
+          {error && <div className="text-red-400 mb-4 text-sm">{error}</div>}
+          <button 
+            type="submit" 
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded transition-colors" 
+            disabled={loading}
+          >
+            {loading ? 'Creating...' : 'Create Team'}
+          </button>
+        </form>
+        <div className="mt-4 text-center">
+          <button
+            onClick={onBackToLogin}
+            className="text-blue-400 hover:text-blue-300 underline text-sm"
+          >
+            Back to login
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- component ---------- */
 
 export default function ResearchMemory() {
@@ -88,6 +247,9 @@ export default function ResearchMemory() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showCreateTeam, setShowCreateTeam] = useState(false);
+  const [teamsExist, setTeamsExist] = useState(false);
 
   /* version UI state */
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
@@ -107,51 +269,54 @@ export default function ResearchMemory() {
   const [activeEditors, setActiveEditors] = useState<Record<string, string[]>>({});
   const [ws, setWs] = useState<WebSocket | null>(null);
 
+  // Check for team JWT on mount
+  useEffect(() => {
+    const jwt = localStorage.getItem('team_jwt');
+    setIsAuthenticated(!!jwt);
+  }, []);
+
+  useEffect(() => {
+    teamService.checkTeamsExist()
+      .then(data => {
+        setTeamsExist(data.exists);
+      })
+      .catch(err => {
+        console.error('Error checking if teams exist:', err);
+        setTeamsExist(false);
+      });
+  }, []);
+
   const fetchResearchItems = async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const { data: items, error: itemsError } = await supabase
-        .from('research')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (itemsError) throw itemsError;
+      const teamJwt = localStorage.getItem('team_jwt');
+      
+      if (!teamJwt) {
+        setError('No team authentication found');
+        return;
+      }
+      
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/research`, {
+        headers: { Authorization: `Bearer ${teamJwt}` },
+      });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error || 'Failed to fetch research');
+      const items = result.data;
 
       // Initialize versions state for all items
       const initialVersions: Record<string, ResearchVersion[]> = {};
 
       const itemsWithVersions = await Promise.all(
-        items.map(async (item) => {
-          const { data: versions, error: versionsError } = await supabase
-            .from('research_versions')
-            .select('*')
-            .eq('research_id', item.id)
-            .order('version_number', { ascending: true });
-
-          if (versionsError) throw versionsError;
-
-          // Add the research item itself as version 0
-          const allVersions = [
-            {
-              id: item.id,
-              research_id: item.id,
-              content: item.content,
-              created_at: item.created_at,
-              author: item.author || 'Unknown',
-              version_number: 0,
-              file_url: item.file_url
-            },
-            ...(versions || [])
-          ];
-
-          // Store versions in the versions state
-          initialVersions[item.id] = allVersions;
-
-          return {
-            ...item,
-            versions: allVersions
-          };
+        items.map(async (item: any) => {
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/research/${item.id}/versions`, {
+            headers: { Authorization: `Bearer ${teamJwt}` },
+          });
+          const verResult = await res.json();
+          if (!verResult.success) return { ...item, versions: [] };
+          // The backend already includes version 0 in the response
+          initialVersions[item.id] = verResult.versions;
+          return { ...item, versions: verResult.versions };
         })
       );
 
@@ -167,8 +332,10 @@ export default function ResearchMemory() {
   };
 
   useEffect(() => {
-    fetchResearchItems();
-  }, [supabase]);
+    if (isAuthenticated) {
+      fetchResearchItems();
+    }
+  }, [isAuthenticated]);
 
   const toggleVersions = async (research: ResearchItem) => {
     setOpenDropdown(d => (d === research.id ? null : research.id));
@@ -179,27 +346,20 @@ export default function ResearchMemory() {
     }
 
     try {
-      const { data: versions, error: versionsError } = await supabase
-        .from('research_versions')
-        .select('*')
-        .eq('research_id', research.id)
-        .order('version_number', { ascending: true });
+      const teamJwt = localStorage.getItem('team_jwt');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/research/${research.id}/versions`, {
+        headers: { Authorization: `Bearer ${teamJwt}` },
+      });
+      const result = await res.json();
+      
+      if (!result.success) {
+        console.error('Error fetching versions:', result.error);
+        setError('Failed to load versions');
+        return;
+      }
 
-      if (versionsError) throw versionsError;
-
-      // Add the research item itself as version 0
-      const allVersions = [
-        {
-          id: research.id,
-          research_id: research.id,
-          content: research.content,
-          created_at: research.created_at,
-          author: research.author || 'Unknown',
-          version_number: 0,
-          file_url: research.file_url
-        },
-        ...(versions || [])
-      ];
+      // The backend already includes version 0 in the response, so use it directly
+      const allVersions = result.versions || [];
 
       setVersions(v => ({ ...v, [research.id]: allVersions }));
     } catch (error) {
@@ -210,45 +370,27 @@ export default function ResearchMemory() {
 
   const refreshVersions = async (researchId: string) => {
     console.log(`Refreshing versions for research ID: ${researchId}`);
-    const { data: versions, error: versionsError } = await supabase
-      .from('research_versions')
-      .select('*')
-      .eq('research_id', researchId)
-      .order('version_number', { ascending: true });
+    const teamJwt = localStorage.getItem('team_jwt');
+    
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/research/${researchId}/versions`, {
+        headers: { Authorization: `Bearer ${teamJwt}` },
+      });
+      const result = await res.json();
+      
+      if (!result.success) {
+        console.error(`Failed to refresh versions for ${researchId}:`, result.error);
+        return;
+      }
 
-    if (versionsError) {
-      console.error(`Failed to refresh versions for ${researchId}:`, versionsError);
-      return;
+      // The backend already includes version 0 in the response, so use it directly
+      const allVersions = result.versions || [];
+
+      console.log(`Refreshed versions for ${researchId}:`, allVersions);
+      setVersions(v => ({ ...v, [researchId]: allVersions }));
+    } catch (error) {
+      console.error(`Error refreshing versions for ${researchId}:`, error);
     }
-
-    // Get the research item to add as version 0
-    const { data: research, error: researchError } = await supabase
-      .from('research')
-      .select('*')
-      .eq('id', researchId)
-      .single();
-
-    if (researchError) {
-      console.error(`Failed to fetch research for ${researchId}:`, researchError);
-      return;
-    }
-
-    // Add the research item itself as version 0
-    const allVersions = [
-      {
-        id: research.id,
-        research_id: research.id,
-        content: research.content,
-        created_at: research.created_at,
-        author: research.author || 'Unknown',
-        version_number: 0,
-        file_url: research.file_url
-      },
-      ...(versions || [])
-    ];
-
-    console.log(`Refreshed versions for ${researchId}:`, allVersions);
-    setVersions(v => ({ ...v, [researchId]: allVersions }));
   };
 
   const handleCreateSuccess = () => {
@@ -276,10 +418,11 @@ export default function ResearchMemory() {
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'editors_update') {
-        // Filter out current user from the editors list
+        // Filter out current team from the editors list
+        const currentTeamName = localStorage.getItem('team_name') || 'Team Member';
         const filteredEditors = {};
         Object.entries(data.editors).forEach(([researchId, editors]) => {
-          const otherEditors = (editors as string[]).filter(editor => editor !== user?.email);
+          const otherEditors = (editors as string[]).filter(editor => editor !== currentTeamName);
           if (otherEditors.length > 0) {
             filteredEditors[researchId] = otherEditors;
           }
@@ -303,41 +446,46 @@ export default function ResearchMemory() {
 
     setWs(socket);
     return socket;
-  }, [user?.email]);
+  }, []);
 
   useEffect(() => {
-    const socket = connectWebSocket();
-    return () => {
-      socket.close();
-    };
-  }, [connectWebSocket]);
+    if (isAuthenticated) {
+      const socket = connectWebSocket();
+      return () => {
+        socket.close();
+      };
+    }
+  }, [connectWebSocket, isAuthenticated]);
 
   // Function to notify server when starting to edit
   const notifyEditing = useCallback((researchId: string) => {
-    if (ws?.readyState === WebSocket.OPEN && user?.id) {
+    if (ws?.readyState === WebSocket.OPEN) {
+      const teamName = localStorage.getItem('team_name') || 'Team Member';
       ws.send(JSON.stringify({
         type: 'start_edit',
         researchId,
-        username: user.id
+        username: teamName
       }));
     }
-  }, [ws, user]);
+  }, [ws]);
 
   // Function to notify server when stopping edit
   const notifyStoppedEditing = useCallback((researchId: string) => {
-    if (ws?.readyState === WebSocket.OPEN && user?.id) {
+    if (ws?.readyState === WebSocket.OPEN) {
+      const teamName = localStorage.getItem('team_name') || 'Team Member';
       ws.send(JSON.stringify({
         type: 'stop_edit',
         researchId,
-        username: user.id
+        username: teamName
       }));
     }
-  }, [ws, user]);
+  }, [ws]);
 
   // Update the modal open/close handlers to include editing notifications
   const handleOpenAddVersion = (research: ResearchItem) => {
-    if (!user) {
-      router.push('/login');
+    const teamJwt = localStorage.getItem('team_jwt');
+    if (!teamJwt) {
+      alert('Please log in to your team first');
       return;
     }
     setAddVerModal({
@@ -358,30 +506,74 @@ export default function ResearchMemory() {
 
   // Update lock/unlock requests to use API service
   const acquireLock = async (researchId: string) => {
-    if (!jwt) {
-      console.warn('No JWT available for lock request');
+    const teamJwt = localStorage.getItem('team_jwt');
+    if (!teamJwt) {
+      console.warn('No team JWT available for lock request');
       return;
     }
     
     try {
-      await apiService.acquireLock(researchId, jwt);
+      await apiService.acquireLock(researchId, teamJwt);
     } catch (error) {
       console.error('Failed to acquire lock:', error);
     }
   };
 
   const releaseLock = async (researchId: string) => {
-    if (!jwt) {
-      console.warn('No JWT available for unlock request');
+    const teamJwt = localStorage.getItem('team_jwt');
+    if (!teamJwt) {
+      console.warn('No team JWT available for unlock request');
       return;
     }
     
     try {
-      await apiService.releaseLock(researchId, jwt);
+      await apiService.releaseLock(researchId, teamJwt);
     } catch (error) {
       console.error('Failed to release lock:', error);
     }
   };
+
+  // Logout handler
+  const handleLogout = () => {
+    localStorage.removeItem('team_jwt');
+    localStorage.removeItem('team_id');
+    localStorage.removeItem('team_name');
+    setIsAuthenticated(false);
+    setShowCreateTeam(false);
+  };
+
+  // Handle team creation success
+  const handleTeamCreated = () => {
+    setShowCreateTeam(false);
+    setTeamsExist(true);
+    // Show success message and redirect to login
+    alert('Team created successfully! Please log in with your team credentials.');
+  };
+
+  // Handle login success
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true);
+    setShowCreateTeam(false);
+  };
+
+  // Render different components based on state
+  if (showCreateTeam) {
+    return (
+      <CreateTeam 
+        onCreated={handleTeamCreated}
+        onBackToLogin={() => setShowCreateTeam(false)}
+      />
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <TeamLogin 
+        onLogin={handleLoginSuccess}
+        onCreateTeam={() => setShowCreateTeam(true)}
+      />
+    );
+  }
 
   if (isLoading) {
     return (
@@ -394,6 +586,21 @@ export default function ResearchMemory() {
   return (
     <div className="min-h-screen bg-black text-white">
       <div className="container mx-auto px-4 py-8">
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-400" />
+            <span className="text-gray-300">
+              Team: {localStorage.getItem('team_name') || 'Unknown'}
+            </span>
+          </div>
+          <button 
+            onClick={handleLogout} 
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-colors flex items-center gap-2"
+          >
+            <X className="w-4 h-4" />
+            Logout
+          </button>
+        </div>
         {/* page header */}
         <div className="text-center max-w-4xl mx-auto mb-12">
           <h1 className="text-4xl md:text-6xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
@@ -423,8 +630,9 @@ export default function ResearchMemory() {
 
             <Button
               onClick={() => {
-                if (!user) {
-                  router.push('/login');
+                const teamJwt = localStorage.getItem('team_jwt');
+                if (!teamJwt) {
+                  alert('Please log in to your team first');
                   return;
                 }
                 setIsCreateModalOpen(true);
