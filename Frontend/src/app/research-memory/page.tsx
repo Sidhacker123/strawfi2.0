@@ -297,22 +297,22 @@ export default function ResearchMemory() {
         return;
       }
       
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/research`, {
-        headers: { Authorization: `Bearer ${teamJwt}` },
-      });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to fetch research');
-      const items = result.data;
+      const result = await apiService.authenticatedFetch('/api/research', {
+        method: 'GET',
+      }, teamJwt);
+      const resultData = await result.json();
+      if (!resultData.success) throw new Error(resultData.error || 'Failed to fetch research');
+      const items = resultData.data;
 
       // Initialize versions state for all items
       const initialVersions: Record<string, ResearchVersion[]> = {};
 
       const itemsWithVersions = await Promise.all(
         items.map(async (item: any) => {
-          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/research/${item.id}/versions`, {
-            headers: { Authorization: `Bearer ${teamJwt}` },
-          });
-          const verResult = await res.json();
+          const verResponse = await apiService.authenticatedFetch(`/api/research/${item.id}/versions`, {
+            method: 'GET',
+          }, teamJwt);
+          const verResult = await verResponse.json();
           if (!verResult.success) return { ...item, versions: [] };
           // The backend already includes version 0 in the response
           initialVersions[item.id] = verResult.versions;
@@ -347,9 +347,9 @@ export default function ResearchMemory() {
 
     try {
       const teamJwt = localStorage.getItem('team_jwt');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/research/${research.id}/versions`, {
-        headers: { Authorization: `Bearer ${teamJwt}` },
-      });
+      const res = await apiService.authenticatedFetch(`/api/research/${research.id}/versions`, {
+        method: 'GET',
+      }, teamJwt);
       const result = await res.json();
       
       if (!result.success) {
@@ -373,9 +373,9 @@ export default function ResearchMemory() {
     const teamJwt = localStorage.getItem('team_jwt');
     
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/research/${researchId}/versions`, {
-        headers: { Authorization: `Bearer ${teamJwt}` },
-      });
+      const res = await apiService.authenticatedFetch(`/api/research/${researchId}/versions`, {
+        method: 'GET',
+      }, teamJwt);
       const result = await res.json();
       
       if (!result.success) {

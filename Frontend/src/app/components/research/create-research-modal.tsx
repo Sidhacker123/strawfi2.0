@@ -80,23 +80,12 @@ const CreateResearchModal = ({ isOpen, onClose, onSuccess }) => {
   };
 
   const uploadFile = async (file) => {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/upload`, {
-      method: 'POST',
-      body: formData,
-      headers: {
-        'Authorization': `Bearer ${currentJwt}`
-      }
-    });
-
-    if (!response.ok) {
+    try {
+      return await apiService.uploadFile(file, currentJwt);
+    } catch (error) {
+      console.error('File upload failed:', error);
       throw new Error('Failed to upload file');
     }
-
-    const result = await response.json();
-    return result.url;
   };
 
   const handleSubmit = async () => {

@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 import RichTextEditor from '../../../components/research/RichTextEditor';
 import WritingAssistant from '../../../components/research/WritingAssistant';
+import { apiService } from '@/lib/services/apiService';
 
 interface Props {
   isOpen: boolean;
@@ -44,17 +45,16 @@ export default function AddVersionModal({
   React.useEffect(() => {
     const loadVersions = async () => {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-        const res = await fetch(`${apiUrl}/api/research/${researchId}/versions`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.versions && data.versions.length > 0) {
-            setFormData(prev => ({
-              ...prev,
-              content: data.versions[0].content,
-              tags: data.versions[0].tags || []
-            }));
-          }
+        const res = await apiService.authenticatedFetch(`/api/research/${researchId}/versions`, {
+          method: 'GET',
+        });
+        const data = await res.json();
+        if (data.versions && data.versions.length > 0) {
+          setFormData(prev => ({
+            ...prev,
+            content: data.versions[0].content,
+            tags: data.versions[0].tags || []
+          }));
         }
       } catch (error) {
         console.error('Error fetching versions:', error);
@@ -73,14 +73,12 @@ export default function AddVersionModal({
   /* ---------- helpers ---------- */
 
   const uploadFile = async (file: File) => {
-    const fd = new FormData();
-    fd.append('file', file);
-    
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-    const r = await fetch(`${apiUrl}/api/upload`, { method: 'POST', body: fd });
-    if (!r.ok) throw new Error('File upload failed');
-    const j = await r.json();
-    return j.url as string;
+    try {
+      return await apiService.uploadFile(file);
+    } catch (error) {
+      console.error('File upload failed:', error);
+      throw new Error('File upload failed');
+    }
   };
 
   const addTag = () => {
