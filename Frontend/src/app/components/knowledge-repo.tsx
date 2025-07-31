@@ -33,6 +33,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { apiService } from '@/lib/services/apiService';
 
 interface User {
   id: string;
@@ -871,11 +872,9 @@ const KnowledgeRepository: React.FC<KnowledgeRepositoryProps> = ({ user }) => {
           // Refresh the research items
           const fetchResearchItems = async () => {
             try {
-              const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-              const response = await fetch(`${apiUrl}/api/research`);
-              if (!response.ok) {
-                throw new Error('Failed to fetch research items');
-              }
+              const response = await apiService.authenticatedFetch('/api/research', {
+                method: 'GET',
+              });
               const result = await response.json();
               if (result.success && Array.isArray(result.data)) {
                 setResearchItems(result.data);

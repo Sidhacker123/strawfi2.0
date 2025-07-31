@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { config } from '@/lib/config';
 
 export async function POST(request: Request) {
   try {
@@ -6,7 +7,7 @@ export async function POST(request: Request) {
     const query = searchParams.get('query');
     const body = await request.json();
 
-    const response = await fetch(`${process.env.BACKEND_URL}/research/search?query=${query}`, {
+    const response = await fetch(`${config.api.baseUrl}/research/search?query=${query}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

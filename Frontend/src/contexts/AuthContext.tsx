@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useRouter } from 'next/navigation';
+import { config } from '@/lib/config';
 
 interface UserProfile {
   id: string;
@@ -200,7 +201,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     jwtFetchingRef.current = true;
     
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const apiUrl = config.api.baseUrl;
       console.log('Fetching JWT from:', `${apiUrl}/api/get-jwt`, 'for user:', userId);
       
       const res = await fetch(`${apiUrl}/api/get-jwt`, {
@@ -492,7 +493,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               
               // Try to fetch JWT in background (non-blocking)
               // Don't await this - let it run in background
-              const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+              const backendUrl = config.api.baseUrl;
               if (backendUrl.includes('localhost')) {
                 console.log('🔑 Starting JWT fetch in background for local backend...');
                 fetchJwt(session.user.id, true).then(jwtResult => {

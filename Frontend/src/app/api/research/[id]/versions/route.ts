@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { config } from '@/lib/config';
 
-// Use environment variable instead of hardcoded localhost
-const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+// Use config service instead of hardcoded localhost
+const backendUrl = config.api.baseUrl;
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   const { id } = params;

@@ -1,4 +1,6 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+import { config } from '@/lib/config';
+
+const API_BASE_URL = config.api.baseUrl;
 
 export interface TeamLoginRequest {
   team_id: string;

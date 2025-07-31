@@ -123,37 +123,27 @@ export default function AddVersionModal({
 
       const authorName = profile?.full_name || session.user.email?.split('@')[0] || 'Unknown';
 
-      // Get the latest version number
-      const { data: lastVersion } = await supabase
-        .from('research_versions')
-        .select('version_number')
-        .eq('research_id', researchId)
-        .order('version_number', { ascending: false })
-        .limit(1)
-        .single();
+      // Get team JWT for authentication
+      const teamJwt = localStorage.getItem('team_jwt');
+      if (!teamJwt) {
+        throw new Error('No team authentication found');
+      }
 
-      const nextVersion = (lastVersion?.version_number || 0) + 1;
+      // Create new version using API service
+      const result = await apiService.createResearchVersion(researchId, {
+        content: formData.content,
+        tags: formData.tags,
+        fileUrl: fileUrl,
+        username: authorName
+      }, teamJwt);
 
-      // Create new version
-      const { error } = await supabase
-        .from('research_versions')
-        .insert([
-          {
-            research_id: researchId,
-            version_number: nextVersion,
-            title,
-            type,
-            content: formData.content,
-            tags: formData.tags,
-            author: authorName,
-            file_url: fileUrl
-          }
-        ]);
-
-      if (error) throw error;
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to create version');
+      }
 
       onSuccess();
     } catch (err: any) {
+      console.error('Version creation failed:', err);
       alert(err.message);
     } finally {
       setSubmitting(false);

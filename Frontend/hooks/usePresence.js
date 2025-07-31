@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSupabaseClient } from '@supabase/auth-helpers-react';
+import { config } from '@/lib/config';
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
+const WS_URL = config.websocket.url;
 
 export function usePresence(researchId) {
   const [editors, setEditors] = useState([]);
