@@ -479,10 +479,12 @@ export default function ResearchMemory() {
   const notifyEditing = useCallback((researchId: string) => {
     if (ws?.readyState === WebSocket.OPEN) {
       const teamName = localStorage.getItem('team_name') || 'Team Member';
+      const teamId = localStorage.getItem('team_id') || 'unknown';
       ws.send(JSON.stringify({
         type: 'start_edit',
         researchId,
-        username: teamName
+        teamName: teamName,
+        teamId: teamId
       }));
     }
   }, [ws]);
@@ -491,10 +493,12 @@ export default function ResearchMemory() {
   const notifyStoppedEditing = useCallback((researchId: string) => {
     if (ws?.readyState === WebSocket.OPEN) {
       const teamName = localStorage.getItem('team_name') || 'Team Member';
+      const teamId = localStorage.getItem('team_id') || 'unknown';
       ws.send(JSON.stringify({
         type: 'stop_edit',
         researchId,
-        username: teamName
+        teamName: teamName,
+        teamId: teamId
       }));
     }
   }, [ws]);

@@ -181,8 +181,24 @@ const createResearchVersion = async (req, res) => {
 // FETCH ALL RESEARCH ITEMS 
 const getAllResearch = async (req, res) => {
   try {
-    console.log('Fetching all research items...');
+    console.log('📚 Fetching all research items...');
     const team_id = req.team_id;
+    console.log('👥 Team ID from JWT:', team_id);
+    
+    // First, let's see ALL research items (for debugging)
+    const { data: allResearch, error: allErr } = await supabase
+      .from('research')
+      .select('id, title, team_id, author, created_at')
+      .order('created_at', { ascending: false });
+    
+    if (!allErr && allResearch) {
+      console.log('🔍 All research items in database:');
+      allResearch.forEach(item => {
+        console.log(`  - ${item.title} (ID: ${item.id}, Team: ${item.team_id}, Author: ${item.author})`);
+      });
+    }
+    
+    // Now fetch items for this team
     const { data, error } = await supabase
       .from('research')
       .select('*')
@@ -190,7 +206,7 @@ const getAllResearch = async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Supabase error:', error);
+      console.error('❌ Supabase error:', error);
       return res.status(500).json({
         success: false,
         message: 'Failed to fetch research items',
@@ -198,14 +214,14 @@ const getAllResearch = async (req, res) => {
       });
     }
 
-    console.log(`Found ${data.length} research items`);
+    console.log(`✅ Found ${data.length} research items for team ${team_id}`);
     res.status(200).json({
       success: true,
       data: data || [],
       message: 'Research items retrieved successfully'
     });
   } catch (error) {
-    console.error('Error fetching research:', error);
+    console.error('❌ Error fetching research:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch research items',
@@ -253,7 +269,51 @@ const getResearchVersions = async (req, res) => {
   try {
     const { id: research_id } = req.params;
     const team_id = req.team_id;
-    // First get the original research item
+    
+    console.log('🔍 Fetching versions for research:', research_id);
+    console.log('👥 Team ID from JWT:', team_id);
+    
+    // First, let's check if the research exists at all (without team filter)
+    const { data: researchCheck, error: checkErr } = await supabase
+      .from('research')
+      .select('id, title, team_id')
+      .eq('id', research_id)
+      .single();
+    
+    if (checkErr) {
+      console.error('❌ Error checking research existence:', checkErr);
+      return res.status(404).json({
+        success: false,
+        message: 'Research item not found'
+      });
+    }
+    
+    if (!researchCheck) {
+      console.log('❌ Research item does not exist');
+      return res.status(404).json({
+        success: false,
+        message: 'Research item not found'
+      });
+    }
+    
+    console.log('📊 Research check result:', {
+      research_id: researchCheck.id,
+      title: researchCheck.title,
+      research_team_id: researchCheck.team_id,
+      jwt_team_id: team_id,
+      team_match: researchCheck.team_id === team_id
+    });
+    
+    // Check if team_id matches
+    if (researchCheck.team_id !== team_id) {
+      console.log('❌ Team ID mismatch - research belongs to different team');
+      return res.status(403).json({
+        success: false,
+        message: 'This research item belongs to a different team'
+      });
+    }
+    
+    // Now get the full research item
     const { data: originalResearch, error: researchErr } = await supabase
       .from('research')
       .select('*')
@@ -266,14 +326,6 @@ const getResearchVersions = async (req, res) => {
       throw researchErr;
     }
 
-    if (!originalResearch) {
-      console.log('❌ Research not found or does not belong to team');
-      return res.status(404).json({
-        success: false,
-        message: 'Research item not found or does not belong to your team'
-      });
-    }
-
     console.log('✅ Research found:', originalResearch.title);
 
     // Then get all versions from the research_versions table
@@ -283,7 +335,12 @@ const getResearchVersions = async (req, res) => {
       .eq('research_id', research_id)
       .order('version_number', { ascending: true });
 
-    if (versionsErr) throw versionsErr;
+    if (versionsErr) {
+      console.error('❌ Error fetching versions:', versionsErr);
+      throw versionsErr;
+    }
+
+    console.log('📚 Found versions:', versions?.length || 0);
 
     // Prepare the original research as "Version 0"
     const baseVersion = {

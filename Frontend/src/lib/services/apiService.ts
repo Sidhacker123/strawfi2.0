@@ -169,17 +169,40 @@ class ApiService {
     
     const url = `${this.getApiUrl()}/api/upload`;
     
+    console.log('📤 Uploading file to:', url);
+    console.log('📄 File details:', {
+      name: file.name,
+      size: file.size,
+      type: file.type
+    });
+    
     // Don't send auth headers for file upload - endpoint doesn't require auth
     const response = await fetch(url, {
       method: 'POST',
       body: formData,
     });
     
+    console.log('📥 Upload response status:', response.status);
+    
     if (!response.ok) {
-      throw new Error(`File upload failed: ${response.status}`);
+      let errorMessage = `File upload failed: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorMessage;
+      } catch (e) {
+        try {
+          const errorText = await response.text();
+          errorMessage = errorText || errorMessage;
+        } catch (e2) {
+          // Use default message
+        }
+      }
+      console.error('❌ File upload error:', errorMessage);
+      throw new Error(errorMessage);
     }
     
     const data = await response.json();
+    console.log('✅ File uploaded successfully:', data.url);
     return data.url;
   }
 }

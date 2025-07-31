@@ -20,10 +20,13 @@ export function usePresence(researchId) {
     socket.onopen = () => {
       setIsConnected(true);
       // Send initial start_edit message
+      const teamName = localStorage.getItem('team_name') || 'Team Member';
+      const teamId = localStorage.getItem('team_id') || 'unknown';
       socket.send(JSON.stringify({
         type: 'start_edit',
         researchId,
-        username: user.user_metadata.username || user.email
+        teamName: teamName,
+        teamId: teamId
       }));
     };
 
@@ -48,10 +51,13 @@ export function usePresence(researchId) {
     return () => {
       if (socket) {
         // Send stop_edit message before closing
+        const teamName = localStorage.getItem('team_name') || 'Team Member';
+        const teamId = localStorage.getItem('team_id') || 'unknown';
         socket.send(JSON.stringify({
           type: 'stop_edit',
           researchId,
-          username: supabase.auth.user()?.user_metadata?.username
+          teamName: teamName,
+          teamId: teamId
         }));
         socket.close();
       }

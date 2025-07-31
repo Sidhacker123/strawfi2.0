@@ -39,7 +39,7 @@ export const config = {
   // URLs for reference
   frontend: {
     baseUrl: process.env.NODE_ENV === 'production' 
-      ? 'https://strawfi-testing-01.vercel.app'
+      ? 'https://strawfi.com'
       : 'http://localhost:3000',
   },
 };

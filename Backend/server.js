@@ -48,11 +48,8 @@ const corsOptions = {
     
     const allowedOrigins = process.env.NODE_ENV === 'production'
       ? [
-          process.env.FRONTEND_URL,
-          'https://www.strawfi.com',
-          'https://strawfi-testing.vercel.app',
-          'https://strawfi-testing-01.vercel.app',
-          'https://fintech-multiverse.vercel.app'
+          'https://strawfi.com',
+          'https://www.strawfi.com'
         ].filter(Boolean) // Remove undefined values
       : ['http://localhost:3000', 'http://127.0.0.1:3000'];
     
@@ -205,6 +202,47 @@ app.get('/api/cors-test', (req, res) => {
     origin: req.get('Origin'),
     timestamp: new Date().toISOString()
   });
+});
+
+// Debug endpoint to check teams and research (remove after debugging)
+app.get('/api/debug/teams-research', async (req, res) => {
+  try {
+    console.log('🔍 Debug endpoint accessed');
+    
+    // Get all teams
+    const { data: teams, error: teamsErr } = await supabase
+      .from('teams')
+      .select('id, team_id, team_name, created_at');
+    
+    // Get all research items
+    const { data: research, error: researchErr } = await supabase
+      .from('research')
+      .select('id, title, team_id, author, created_at');
+    
+    if (teamsErr || researchErr) {
+      return res.status(500).json({
+        error: 'Database error',
+        teamsErr,
+        researchErr
+      });
+    }
+    
+    res.json({
+      teams: teams || [],
+      research: research || [],
+      summary: {
+        total_teams: teams?.length || 0,
+        total_research: research?.length || 0,
+        research_by_team: research?.reduce((acc, item) => {
+          acc[item.team_id] = (acc[item.team_id] || 0) + 1;
+          return acc;
+        }, {}) || {}
+      }
+    });
+  } catch (error) {
+    console.error('Debug endpoint error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 /* ---------- existing routes ---------- */
@@ -534,44 +572,28 @@ wss.on('connection', (ws, req) => {
       const data = JSON.parse(message);
       
       if (data.type === 'start_edit') {
-        const { researchId, username } = data;
-        // Get user's full name from profiles table
-        const { data: userData, error } = await supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('id', username)
-          .single();
-
-        if (error) {
-          console.error('Error fetching user data:', error);
-          return;
-        }
-
-        const displayName = userData?.full_name || username;
+        const { researchId, teamName, teamId } = data;
+        console.log('🔥 Team started editing:', { researchId, teamName, teamId });
+        
+        // Use the team name directly since we're tracking team-based editing
+        const displayName = teamName || 'Team Member';
         
         if (!activeEditors.has(researchId)) {
           activeEditors.set(researchId, new Set());
         }
         activeEditors.get(researchId).add(displayName);
         
+        console.log('📝 Active editors updated:', activeEditors.get(researchId));
+        
         // Broadcast to all clients
         broadcastEditors();
       } 
       else if (data.type === 'stop_edit') {
-        const { researchId, username } = data;
-        // Get user's full name from profiles table
-        const { data: userData, error } = await supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('id', username)
-          .single();
-
-        if (error) {
-          console.error('Error fetching user data:', error);
-          return;
-        }
-
-        const displayName = userData?.full_name || username;
+        const { researchId, teamName, teamId } = data;
+        console.log('🛑 Team stopped editing:', { researchId, teamName, teamId });
+        
+        // Use the team name directly since we're tracking team-based editing
+        const displayName = teamName || 'Team Member';
         
         if (activeEditors.has(researchId)) {
           activeEditors.get(researchId).delete(displayName);
@@ -579,6 +601,8 @@ wss.on('connection', (ws, req) => {
             activeEditors.delete(researchId);
           }
         }
+        
+        console.log('📝 Active editors updated:', activeEditors.get(researchId));
         
         // Broadcast to all clients
         broadcastEditors();
