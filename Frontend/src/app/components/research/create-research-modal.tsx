@@ -65,8 +65,8 @@ const CreateResearchModal = ({ isOpen, onClose, onSuccess }) => {
   const [fileError, setFileError] = useState('');
   const [selectedText, setSelectedText] = useState('');
 
-  // Get team JWT for authentication
-  const currentJwt = localStorage.getItem('team_jwt');
+  // Get team JWT for authentication (dynamically)
+  const getCurrentJwt = () => localStorage.getItem('team_jwt');
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -87,7 +87,7 @@ const CreateResearchModal = ({ isOpen, onClose, onSuccess }) => {
       type: file.type
     });
     
-    const currentJwt = localStorage.getItem('team_jwt');
+    const currentJwt = getCurrentJwt();
     console.log('🔑 Team JWT for upload:', currentJwt ? 'Present' : 'Missing');
     
     try {
@@ -107,10 +107,13 @@ const CreateResearchModal = ({ isOpen, onClose, onSuccess }) => {
       return;
     }
 
+    const currentJwt = getCurrentJwt();
     if (!currentJwt) {
       alert('Please log in to your team first');
       return;
     }
+
+    console.log('🔐 Using JWT for research creation:', currentJwt ? 'Present' : 'Missing');
 
     setIsSubmitting(true);
     try {

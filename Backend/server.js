@@ -245,6 +245,16 @@ app.get('/api/debug/teams-research', async (req, res) => {
   }
 });
 
+// Debug endpoint to test JWT authentication
+app.get('/api/debug/test-auth', authenticateTeamToken, (req, res) => {
+  console.log('🔍 Auth test endpoint accessed');
+  res.json({
+    message: 'JWT authentication successful',
+    team_id: req.team_id,
+    timestamp: new Date().toISOString()
+  });
+});
+
 /* ---------- existing routes ---------- */
 
 // Persona

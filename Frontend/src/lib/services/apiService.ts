@@ -24,6 +24,11 @@ class ApiService {
   ): Promise<Response> {
     const url = `${this.getApiUrl()}${endpoint}`;
     
+    console.log(`🔐 JWT for request:`, jwt ? 'Present' : 'Missing');
+    if (jwt) {
+      console.log(`🔑 JWT preview:`, jwt.substring(0, 50) + '...');
+    }
+    
     const config: RequestInit = {
       ...options,
       headers: {
@@ -33,6 +38,7 @@ class ApiService {
     };
 
     console.log(`Making authenticated request to: ${url}`);
+    console.log(`📤 Request headers:`, JSON.stringify(config.headers, null, 2));
     
     try {
       const response = await fetch(url, config);
