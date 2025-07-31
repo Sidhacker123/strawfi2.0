@@ -4,7 +4,7 @@ export const config = {
   api: {
     baseUrl: process.env.NEXT_PUBLIC_API_URL || 
              (process.env.NODE_ENV === 'production' 
-               ? 'https://testing-y0x4.onrender.com'  // Your actual backend URL
+               ? 'https://api.strawfi.com'  // Updated to correct backend URL
                : 'http://localhost:3001'),  // Local backend for development
     timeout: 30000, // 30 seconds
   },
@@ -19,7 +19,7 @@ export const config = {
   websocket: {
     url: process.env.NEXT_PUBLIC_WS_URL || 
          (process.env.NODE_ENV === 'production' 
-           ? 'wss://testing-y0x4.onrender.com'  // WebSocket URL for your backend
+           ? 'wss://api.strawfi.com'  // Updated to correct WebSocket URL
            : 'ws://localhost:3001'),  // Local WebSocket for development
   },
 

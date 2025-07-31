@@ -267,26 +267,51 @@ app.post('/api/corporate/cleanup', (req, res) => {
 
 // File upload for PDFs
 app.post('/api/upload', upload.single('file'), async (req, res) => {
-  if (!req.file)
+  console.log('📤 File upload request received');
+  console.log('📝 Request headers:', JSON.stringify(req.headers, null, 2));
+  
+  if (!req.file) {
+    console.log('❌ No file uploaded');
     return res.status(400).json({ error: 'No file uploaded' });
-  if (req.file.mimetype !== 'application/pdf')
+  }
+  
+  console.log('📄 File details:', {
+    originalname: req.file.originalname,
+    mimetype: req.file.mimetype,
+    size: req.file.size
+  });
+  
+  if (req.file.mimetype !== 'application/pdf') {
+    console.log('❌ Invalid file type:', req.file.mimetype);
     return res.status(400).json({ error: 'Only PDF files are allowed' });
+  }
 
   try {
     const fileExt  = req.file.originalname.split('.').pop();
     const fileName = `${Date.now()}.${fileExt}`;
+    
+    console.log('💾 Uploading to Supabase storage:', fileName);
+    
     const { error: upErr } = await supabase.storage
       .from('research-files')
       .upload(fileName, req.file.buffer, { contentType: req.file.mimetype });
 
-    if (upErr) return res.status(500).json({ error: upErr.message });
+    if (upErr) {
+      console.error('❌ Supabase upload error:', upErr);
+      return res.status(500).json({ error: upErr.message });
+    }
+
+    console.log('✅ File uploaded successfully');
 
     const { publicUrl } = supabase.storage
       .from('research-files')
       .getPublicUrl(fileName).data;
 
+    console.log('🔗 Public URL:', publicUrl);
+
     res.json({ url: publicUrl });
   } catch (err) {
+    console.error('❌ File upload unexpected error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -441,9 +466,18 @@ app.post('/api/team-create', async (req, res) => {
 
 // Middleware for team JWT auth
 function authenticateTeamToken(req, res, next) {
+  console.log('🔐 Team authentication attempt for:', req.path);
+  console.log('📝 Request headers:', JSON.stringify(req.headers, null, 2));
+  
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.sendStatus(401);
+  
+  if (!token) {
+    console.log('❌ No authorization token provided');
+    return res.sendStatus(401);
+  }
+  
+  console.log('🔑 Token received, verifying...');
   
   jwt.verify(token, process.env.JWT_SECRET, (err, payload) => {
     if (err) {
@@ -451,6 +485,7 @@ function authenticateTeamToken(req, res, next) {
       return res.sendStatus(403);
     }
     
+    console.log('✅ JWT verified successfully, payload:', payload);
     req.team_id = payload.team_id;
     next();
   });

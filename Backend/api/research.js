@@ -261,7 +261,20 @@ const getResearchVersions = async (req, res) => {
       .eq('team_id', team_id)
       .single();
 
-    if (researchErr) throw researchErr;
+    if (researchErr) {
+      console.error('❌ Error fetching research:', researchErr);
+      throw researchErr;
+    }
+
+    if (!originalResearch) {
+      console.log('❌ Research not found or does not belong to team');
+      return res.status(404).json({
+        success: false,
+        message: 'Research item not found or does not belong to your team'
+      });
+    }
+
+    console.log('✅ Research found:', originalResearch.title);
 
     // Then get all versions from the research_versions table
     const { data: versions, error: versionsErr } = await supabase
@@ -292,13 +305,15 @@ const getResearchVersions = async (req, res) => {
       ...(versions || [])
     ];
 
+    console.log('✅ Returning', allVersions.length, 'versions');
+
     res.status(200).json({
       success: true,
       versions: allVersions,
       message: 'Research versions retrieved successfully'
     });
   } catch (error) {
-    console.error('Error fetching research versions:', error);
+    console.error('❌ Error fetching research versions:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch research versions',

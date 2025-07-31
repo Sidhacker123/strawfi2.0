@@ -169,14 +169,9 @@ class ApiService {
     
     const url = `${this.getApiUrl()}/api/upload`;
     
-    const headers: Record<string, string> = {};
-    if (jwt) {
-      headers.Authorization = `Bearer ${jwt}`;
-    }
-    
+    // Don't send auth headers for file upload - endpoint doesn't require auth
     const response = await fetch(url, {
       method: 'POST',
-      headers,
       body: formData,
     });
     

@@ -79,12 +79,25 @@ const CreateResearchModal = ({ isOpen, onClose, onSuccess }) => {
     }
   };
 
-  const uploadFile = async (file) => {
+  const uploadFile = async (file: File) => {
+    console.log('📤 Starting file upload...');
+    console.log('📄 File details:', {
+      name: file.name,
+      size: file.size,
+      type: file.type
+    });
+    
+    const currentJwt = localStorage.getItem('team_jwt');
+    console.log('🔑 Team JWT for upload:', currentJwt ? 'Present' : 'Missing');
+    
     try {
-      return await apiService.uploadFile(file, currentJwt);
+      console.log('📡 Calling apiService.uploadFile...');
+      const url = await apiService.uploadFile(file, currentJwt);
+      console.log('✅ File uploaded successfully:', url);
+      return url;
     } catch (error) {
-      console.error('File upload failed:', error);
-      throw new Error('Failed to upload file');
+      console.error('❌ File upload failed:', error);
+      throw error;
     }
   };
 

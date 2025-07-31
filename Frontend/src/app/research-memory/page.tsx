@@ -90,12 +90,22 @@ function TeamLogin({ onLogin, onCreateTeam }: { onLogin: () => void; onCreateTea
     setError('');
     setLoading(true);
     try {
+      console.log('🔐 Attempting team login for team ID:', teamId);
       const data = await teamService.login({ team_id: teamId, password });
+      console.log('✅ Team login successful:', {
+        team_id: data.team_id,
+        team_name: data.team_name,
+        hasToken: !!data.token
+      });
+      
       localStorage.setItem('team_jwt', data.token);
       localStorage.setItem('team_id', data.team_id);
       localStorage.setItem('team_name', data.team_name);
+      
+      console.log('💾 Team credentials stored in localStorage');
       onLogin();
     } catch (err: any) {
+      console.error('❌ Team login failed:', err);
       setError(err.message || 'Login failed. Please check your connection.');
     } finally {
       setLoading(false);
@@ -372,7 +382,15 @@ export default function ResearchMemory() {
     console.log(`Refreshing versions for research ID: ${researchId}`);
     const teamJwt = localStorage.getItem('team_jwt');
     
+    console.log('🔑 Team JWT from localStorage:', teamJwt ? 'Present' : 'Missing');
+    
+    if (!teamJwt) {
+      console.error('❌ No team JWT found in localStorage');
+      return;
+    }
+    
     try {
+      console.log('📡 Making authenticated request to fetch versions...');
       const res = await apiService.authenticatedFetch(`/api/research/${researchId}/versions`, {
         method: 'GET',
       }, teamJwt);
